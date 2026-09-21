@@ -76,7 +76,11 @@ const server = createServer(async (req, res) => {
         return json(res, 500, { error: "PINTEREST_ACCESS_TOKEN is not configured", draft });
       }
 
-      const published = await new PinterestDestination(process.env.PINTEREST_ACCESS_TOKEN).publish(draft);
+      const pinterestEnv = process.env.PINTEREST_ENV === "sandbox" ? "sandbox" : "production";
+      const published = await new PinterestDestination(
+        process.env.PINTEREST_ACCESS_TOKEN,
+        pinterestEnv
+      ).publish(draft);
       return json(res, 200, { mode: "published", source, draft, published });
     }
 
