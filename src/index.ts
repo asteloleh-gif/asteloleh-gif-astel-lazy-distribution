@@ -7,14 +7,26 @@ const port = Number(process.env.PORT || 8080);
 
 const server = createServer(async (req, res) => {
   try {
-    if (req.method === "GET" && req.url === "/health") {
+    const requestUrl = new URL(req.url ?? "/", "http://localhost");
+
+    if (req.method === "GET" && requestUrl.pathname === "/health") {
       return json(res, 200, { ok: true, service: "astel-lazy-distribution" });
     }
 
-    if (req.method === "POST" && (req.url === "/api/preview" || req.url === "/api/publish")) {
+    if (req.method === "GET" && requestUrl.pathname === "/api/preview") {
+      const youtubeUrl = requestUrl.searchParams.get("youtubeUrl") ?? "";
+      const boardId = requestUrl.searchParams.get("boardId") ?? process.env.PINTEREST_BOARD_ID ?? "";
+      return handlePreview(res, youtubeUrl, boardId);
+    }
+
+    if (req.method === "POST" && (requestUrl.pathname === "/api/preview" || requestUrl.pathname === "/api/publish")) {
       const body = await readJson(req);
       const youtubeUrl = String(body.youtubeUrl ?? "");
       const boardId = String(body.boardId ?? process.env.PINTEREST_BOARD_ID ?? "");
+
+      if (requestUrl.pathname === "/api/preview") {
+        return handlePreview(res, youtubeUrl, boardId);
+      }
 
       if (!youtubeUrl) return json(res, 400, { error: "youtubeUrl is required" });
       if (!process.env.YOUTUBE_API_KEY) return json(res, 500, { error: "YOUTUBE_API_KEY is not configured" });
@@ -22,7 +34,7 @@ const server = createServer(async (req, res) => {
       const source = await new YouTubeSource(process.env.YOUTUBE_API_KEY).load({ url: youtubeUrl });
       const draft = await packageForPinterest(source, boardId);
 
-      if (req.url === "/api/preview" || process.env.PUBLISH_ENABLED !== "true") {
+      if (process.env.PUBLISH_ENABLED !== "true") {
         return json(res, 200, { mode: "preview", source, draft });
       }
 
@@ -39,6 +51,15 @@ const server = createServer(async (req, res) => {
     return json(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
 });
+
+async function handlePreview(res: any, youtubeUrl: string, boardId: string) {
+  if (!youtubeUrl) return json(res, 400, { error: "youtubeUrl is required" });
+  if (!process.env.YOUTUBE_API_KEY) return json(res, 500, { error: "YOUTUBE_API_KEY is not configured" });
+
+  const source = await new YouTubeSource(process.env.YOUTUBE_API_KEY).load({ url: youtubeUrl });
+  const draft = await packageForPinterest(source, boardId);
+  return json(res, 200, { mode: "preview", source, draft });
+}
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`astel-lazy-distribution listening on :${port}`);
