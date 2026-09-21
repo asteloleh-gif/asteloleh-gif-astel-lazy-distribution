@@ -3,7 +3,10 @@ import type { DestinationConnector, DistributionDraft } from "../core/types.js";
 export class PinterestDestination implements DestinationConnector {
   readonly name = "pinterest";
 
-  constructor(private readonly accessToken: string) {}
+  constructor(
+    private readonly accessToken: string,
+    private readonly environment: "production" | "sandbox" = "production"
+  ) {}
 
   async publish(draft: DistributionDraft): Promise<unknown> {
     if (!draft.targetId) throw new Error("Pinterest board ID is required");
@@ -15,7 +18,12 @@ export class PinterestDestination implements DestinationConnector {
     const contentType = image.headers.get("content-type") || "image/jpeg";
     const data = Buffer.from(await image.arrayBuffer()).toString("base64");
 
-    const res = await fetch("https://api.pinterest.com/v5/pins", {
+    const apiBase =
+      this.environment === "sandbox"
+        ? "https://api-sandbox.pinterest.com/v5"
+        : "https://api.pinterest.com/v5";
+
+    const res = await fetch(`${apiBase}/pins`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${this.accessToken}`,
