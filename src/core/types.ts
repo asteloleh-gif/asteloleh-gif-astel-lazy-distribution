@@ -8,6 +8,8 @@ export type ContentEnvelope = {
   hashtags: string[];
   thumbnailUrl: string;
   publishedAt?: string;
+  durationSeconds?: number;
+  author?: string;
 };
 
 export type DistributionDraft = {
@@ -22,6 +24,11 @@ export type DistributionDraft = {
 export interface SourceConnector<TInput> {
   readonly name: string;
   load(input: TInput): Promise<ContentEnvelope>;
+}
+
+export interface RecentSourceConnector<TInput = { limit?: number }> {
+  readonly name: string;
+  listRecent(input?: TInput): Promise<ContentEnvelope[]>;
 }
 
 export interface DestinationConnector {
