@@ -47,6 +47,34 @@ const server = createServer(async (req, res) => {
 </body></html>`);
     }
 
+    if (req.method === "GET" && requestUrl.pathname === "/api/pinterest/sandbox-smoke") {
+      const key = requestUrl.searchParams.get("key") ?? "";
+      const youtubeUrl = requestUrl.searchParams.get("youtubeUrl") ?? "";
+      const expectedKey = process.env.PINTEREST_SETUP_KEY ?? "";
+
+      if (!expectedKey || key !== expectedKey) return json(res, 403, { error: "forbidden" });
+      if (process.env.PINTEREST_ENV !== "sandbox") return json(res, 400, { error: "Pinterest sandbox mode is required" });
+      if (!process.env.PINTEREST_ACCESS_TOKEN) return json(res, 500, { error: "PINTEREST_ACCESS_TOKEN is not configured" });
+      if (!process.env.YOUTUBE_API_KEY) return json(res, 500, { error: "YOUTUBE_API_KEY is not configured" });
+      if (!youtubeUrl) return json(res, 400, { error: "youtubeUrl is required" });
+
+      const pinterest = new PinterestDestination(process.env.PINTEREST_ACCESS_TOKEN, "sandbox");
+      const board = await pinterest.createBoard("Family Games & Challenges");
+      const boardId = String(board.id ?? "");
+      if (!boardId) return json(res, 500, { error: "Pinterest did not return board id", board });
+
+      const source = await new YouTubeSource(process.env.YOUTUBE_API_KEY).load({ url: youtubeUrl });
+      const draft = await packageForPinterest(source, boardId);
+      const published = await pinterest.publish(draft);
+
+      return json(res, 200, {
+        mode: "sandbox-smoke",
+        board: { id: boardId, name: board.name ?? "Family Games & Challenges" },
+        draft,
+        published
+      });
+    }
+
     if (req.method === "GET" && requestUrl.pathname === "/api/preview") {
       const youtubeUrl = requestUrl.searchParams.get("youtubeUrl") ?? "";
       const boardId = requestUrl.searchParams.get("boardId") ?? process.env.PINTEREST_BOARD_ID ?? "";
