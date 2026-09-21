@@ -14,6 +14,19 @@ export class PinterestDestination implements DestinationConnector {
       : "https://api.pinterest.com/v5";
   }
 
+  async listBoards(): Promise<any> {
+    const res = await fetch(`${this.apiBase()}/boards?page_size=250`, {
+      headers: {
+        "Authorization": `Bearer ${this.accessToken}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    const body = await res.text();
+    if (!res.ok) throw new Error(`Pinterest list boards failed: ${res.status} ${body}`);
+    return body ? JSON.parse(body) : {};
+  }
+
   async createBoard(name: string): Promise<any> {
     const res = await fetch(`${this.apiBase()}/boards`, {
       method: "POST",

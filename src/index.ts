@@ -47,6 +47,23 @@ const server = createServer(async (req, res) => {
 </body></html>`);
     }
 
+    if (req.method === "GET" && requestUrl.pathname === "/api/pinterest/sandbox-check") {
+      const key = requestUrl.searchParams.get("key") ?? "";
+      const expectedKey = process.env.PINTEREST_SETUP_KEY ?? "";
+
+      if (!expectedKey || key !== expectedKey) return json(res, 403, { error: "forbidden" });
+      if (process.env.PINTEREST_ENV !== "sandbox") return json(res, 200, { ok: false, error: "Pinterest sandbox mode is required" });
+      if (!process.env.PINTEREST_ACCESS_TOKEN) return json(res, 200, { ok: false, error: "PINTEREST_ACCESS_TOKEN is not configured" });
+
+      try {
+        const pinterest = new PinterestDestination(process.env.PINTEREST_ACCESS_TOKEN, "sandbox");
+        const boards = await pinterest.listBoards();
+        return json(res, 200, { ok: true, boards });
+      } catch (error) {
+        return json(res, 200, { ok: false, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+
     if (req.method === "GET" && requestUrl.pathname === "/api/pinterest/sandbox-smoke") {
       const key = requestUrl.searchParams.get("key") ?? "";
       const youtubeUrl = requestUrl.searchParams.get("youtubeUrl") ?? "";
