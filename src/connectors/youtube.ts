@@ -12,11 +12,11 @@ export class YouTubeSource implements SourceConnector<YouTubeInput> {
     if (!id) throw new Error("Unsupported YouTube URL");
 
     const url = new URL("https://www.googleapis.com/youtube/v3/videos");
-    url.searchParams.set("part", "snippet");
+    url.searchParams.set("part", "snippet,status");
     url.searchParams.set("id", id);
     url.searchParams.set("key", this.apiKey);
 
-    const res = await fetch(url);
+    const res = await fetch(url, {signal: AbortSignal.timeout(30000)});
     if (!res.ok) throw new Error(`YouTube API failed: ${res.status} ${await res.text()}`);
 
     const data = await res.json() as any;
@@ -28,6 +28,8 @@ export class YouTubeSource implements SourceConnector<YouTubeInput> {
 
     return {
       source: this.name,
+      author: s.channelId,
+      visibility: video.status?.privacyStatus,
       id,
       url: `https://www.youtube.com/shorts/${id}`,
       title: s.title ?? "",

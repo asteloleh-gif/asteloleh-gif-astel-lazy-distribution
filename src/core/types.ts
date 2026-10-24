@@ -10,6 +10,7 @@ export type ContentEnvelope = {
   publishedAt?: string;
   durationSeconds?: number;
   author?: string;
+  visibility?: string;
 };
 
 export type DistributionDraft = {
