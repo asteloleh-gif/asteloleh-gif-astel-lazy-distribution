@@ -36,6 +36,20 @@ export function configuredHub(){
       platform==='threads'?threadsConfirmer(JSON.parse(process.env.LD_THREADS_READ_BINDINGS_JSON??'[]')):undefined,
       JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'));
   }
+  // Subteam is a separate read/validation-only connector until its own release.
+  // The global production write switch never enables this account.
+  const subteamToken=process.env.LD_BUFFER_ASAPTEAM_TOKEN;
+  const subteamAccount=process.env.LD_BUFFER_ASAPTEAM_ACCOUNT_ID;
+  const subteamBindings:BufferBinding[]=JSON.parse(process.env.LD_BUFFER_ASAPTEAM_BINDINGS_JSON??'[]');
+  if(subteamToken&&subteamAccount&&directory){
+    const existing=['INSTAGRAM','THREADS'].flatMap(p=>JSON.parse(process.env[`LD_BUFFER_${p}_BINDINGS_JSON`]??'[]') as BufferBinding[]);
+    if(['INSTAGRAM','THREADS'].some(p=>process.env[`LD_BUFFER_${p}_ACCOUNT_ID`]===subteamAccount)||
+      subteamBindings.some(b=>!['threads','instagram'].includes(b.platform)||!b.accountKey||!b.channelId||existing.some(e=>e.accountKey===b.accountKey||e.channelId===b.channelId))||
+      new Set(subteamBindings.map(b=>b.channelId)).size!==subteamBindings.length||
+      new Set(subteamBindings.map(b=>b.accountKey)).size!==subteamBindings.length||
+      routes.some(r=>r.adapter==='buffer-subteam'&&r.projectId!=='subteam'))fail('BUFFER_SUBTEAM_ISOLATION_REQUIRED',503);
+    adapters['buffer-subteam']=new BufferAdapter('buffer-subteam',subteamToken,subteamAccount,subteamBindings,new FileBufferBudget(directory),false);
+  }
   const hub=directory&&binding?new DistributionHub(new FileStore(directory,binding),routes,JSON.parse(process.env.LD_MEDIA_HOSTS_JSON??'[]'),adapters):undefined;
   if(hub&&process.env.LD_EDITORIAL_ENABLED==='true')hub.editorial=new AirtableEditorial(JSON.parse(process.env.LD_EDITORIAL_BINDINGS_JSON??'[]'));
   return {hub,credentials};

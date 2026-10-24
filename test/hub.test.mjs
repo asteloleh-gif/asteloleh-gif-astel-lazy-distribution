@@ -121,7 +121,7 @@ test('HTTP + MCP share authorization/service; no credentials/body overflow/direc
  assert.equal((await call('/api/distribution/submit',{projectId:'copilot',input:input()},'wrong')).status,403);
  const submitted=await call('/api/distribution/submit',{projectId:'copilot',input:input()});assert.equal(submitted.status,200);
  const rpc=await call('/mcp',{jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'distribution_status',arguments:{projectId:'copilot',planId:submitted.body.id}}});assert.equal(JSON.parse(rpc.body.result.content[0].text).id,submitted.body.id);
- assert.equal((await call('/mcp',{jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'distribution_approve',arguments:{projectId:'copilot',planId:submitted.body.id}}})).status,403);
+ const deniedRpc=await call('/mcp',{jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'distribution_approve',arguments:{projectId:'copilot',planId:submitted.body.id}}});assert.equal(deniedRpc.status,200);assert.equal(deniedRpc.body.result.isError,true);assert.equal(deniedRpc.body.result.content[0].text,'FORBIDDEN');
  assert.equal((await call('/api/distribution/submit','x'.repeat(140000))).status,413);
  assert.equal((await call('/api/distribution/status',{},token,'GET')).status,405);
  assert.equal(networkCalls,0);

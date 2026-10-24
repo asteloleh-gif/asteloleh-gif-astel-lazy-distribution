@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { authenticate, fail, HubError, actionScopes } from './contract.js';
 import type { Credential } from './contract.js';
 import type { DistributionHub } from './service.js';
+import {mcpDescriptor,validMcpReadArguments} from './mcp-contract.js';
 export const actions=Object.keys(actionScopes);
 export async function readBoundedJson(req:IncomingMessage){
   let size=0;const chunks:Buffer[]=[];
@@ -24,12 +25,19 @@ export function hubApi(hub:DistributionHub|undefined,credentials:Credential[]){
         if(body.jsonrpc!=='2.0')return json(400,{error:'INVALID_RPC'});
         if(body.method==='initialize')return json(200,{jsonrpc:'2.0',id:body.id,result:{protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'astel-distribution-hub',version:'1'}}});
         if(body.method==='notifications/initialized'){res.writeHead(202);res.end();return;}
-        if(body.method==='tools/list')return json(200,{jsonrpc:'2.0',id:body.id,result:{tools:actions.filter(a=>p.scopes.includes(actionScopes[a])&&(!['approve','pause','resume'].includes(a)||p.role==='owner')).map(a=>({name:`distribution_${a}`,description:`Scoped distribution ${a}`,annotations:{readOnlyHint:['capabilities','inbox','status','events','metrics','preview'].includes(a),destructiveHint:['schedule','cancel'].includes(a),openWorldHint:['importeditorial','review','schedule','cancel','reconcile'].includes(a)},inputSchema:{type:'object',properties:{projectId:{type:'string'},input:{type:'object'},planId:{type:'string'},digest:{type:'string'},deliveryId:{type:'string'},accountKey:{type:'string'},after:{type:'integer'},cursor:{type:'string'},limit:{type:'integer',minimum:1,maximum:100},global:{type:'boolean'}},required:['projectId']}}))}});
+        if(body.method==='tools/list')return json(200,{jsonrpc:'2.0',id:body.id,result:{tools:actions.filter(a=>p.scopes.includes(actionScopes[a])&&(!['approve','pause','resume'].includes(a)||p.role==='owner')).map(mcpDescriptor)}});
         if(body.method!=='tools/call')return json(200,{jsonrpc:'2.0',id:body.id,error:{code:-32601,message:'METHOD_NOT_FOUND'}});
         const name=body.params?.name;
-        if(typeof name!=='string'||!name.startsWith('distribution_'))return fail('UNKNOWN_TOOL',404);
-        const result=await hub.execute(p,name.slice(13),body.params.arguments);
-        return json(200,{jsonrpc:'2.0',id:body.id,result:{content:[{type:'text',text:JSON.stringify(result)}]}});
+        if(typeof name!=='string'||!name.startsWith('distribution_')||!actions.includes(name.slice(13)))return json(200,{jsonrpc:'2.0',id:body.id,error:{code:-32602,message:'UNKNOWN_TOOL'}});
+        const action=name.slice(13);
+        if(!validMcpReadArguments(action,body.params.arguments))return json(200,{jsonrpc:'2.0',id:body.id,error:{code:-32602,message:'INVALID_TOOL_ARGUMENTS'}});
+        try{
+          const result=await hub.execute(p,action,body.params.arguments);
+          return json(200,{jsonrpc:'2.0',id:body.id,result:{structuredContent:result,content:[{type:'text',text:JSON.stringify(result)}]}});
+        }catch(e){
+          const code=e instanceof HubError?e.code:'HUB_OPERATION_FAILED';
+          return json(200,{jsonrpc:'2.0',id:body.id,result:{isError:true,content:[{type:'text',text:code}]}});
+        }
       }
       const action=path.slice('/api/distribution/'.length);
       return json(200,await hub.execute(p,action,body));
