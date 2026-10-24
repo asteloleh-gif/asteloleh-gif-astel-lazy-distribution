@@ -36,3 +36,10 @@ test('cloud SDK lifecycle uses one durable Hub: delegated approval, repeat, canc
  hub=makeHub();assert.equal((await call('status',{planId:plan.id})).state,'SIMULATED');
  const other=await call('submit',{input:{...input,contentId:'cancel',requestId:'r2',idempotencyKey:'k2'}});assert.equal((await call('cancel',{planId:other.id})).state,'CANCELLED');
 });
+test('YouTube read tools are opt-in, SDK-valid and cannot cross projects or accept write parameters',async t=>{
+ const calls=[];const server=createKevinCloudBridge(async(action,args)=>{calls.push({action,args});return {channelId:'fixture-channel'};},{youtubeRead:true});const client=new Client({name:'youtube-read-fixture',version:'1'},{capabilities:{}});const [a,b]=InMemoryTransport.createLinkedPair();await server.connect(a);await client.connect(b);t.after(()=>client.close());
+ const tools=(await client.listTools()).tools;assert.equal(tools.length,18);for(const name of ['youtubeaccount','youtubevideos','youtubeanalytics'])assert.equal(tools.find(t=>t.name==='distribution_'+name).annotations.readOnlyHint,true);
+ const result=await client.callTool({name:'distribution_youtubeanalytics',arguments:{projectId:'copilot',startDate:'2026-10-01',endDate:'2026-10-23'}});assert.equal(result.structuredContent.channelId,'fixture-channel');
+ for(const args of [{projectId:'foreign'},{projectId:'copilot',upload:true}])assert.equal((await client.callTool({name:'distribution_youtubeaccount',arguments:args})).isError,true);
+ assert.equal((await client.callTool({name:'distribution_youtubeanalytics',arguments:{projectId:'copilot',startDate:'bad',endDate:'2026-10-23'}})).isError,true);assert.equal(calls.length,1);
+});

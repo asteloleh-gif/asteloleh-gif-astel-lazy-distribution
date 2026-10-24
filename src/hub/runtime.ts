@@ -1,3 +1,4 @@
+import { YouTubeConnection,FAMILY_CHANNEL_ID } from './youtube-connection.js';
 import { DistributionHub } from './service.js';
 import { AirtableEditorial } from './editorial.js';
 import { threadsConfirmer } from './threads-confirm.js';
@@ -57,6 +58,11 @@ export function configuredHub(){
     adapters['buffer-subteam']=new BufferAdapter('buffer-subteam',subteamToken,subteamAccount,subteamBindings,new FileBufferBudget(directory),false);
   }
   const hub=directory&&binding?new DistributionHub(new FileStore(directory,binding),routes,JSON.parse(process.env.LD_MEDIA_HOSTS_JSON??'[]'),adapters):undefined;
+  if(process.env.LD_YOUTUBE_FAMILY_ENABLED==='true'){
+    let saved;try{saved=JSON.parse(process.env.LD_YOUTUBE_FAMILY_CONNECTION_JSON??'null');}catch{return fail('YOUTUBE_CONNECTION_REQUIRED',503);}
+    if(!hub||saved?.version!==1||saved.credentials?.channelId!==FAMILY_CHANNEL_ID)return fail('YOUTUBE_FAMILY_BINDING_REQUIRED',503);
+    hub.youtube=new YouTubeConnection(saved.credentials);
+  }
   if(hub&&process.env.LD_EDITORIAL_ENABLED==='true')hub.editorial=new AirtableEditorial(JSON.parse(process.env.LD_EDITORIAL_BINDINGS_JSON??'[]'));
   return {hub,credentials};
 }

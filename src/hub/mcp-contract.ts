@@ -1,6 +1,9 @@
 const project={type:'string',minLength:1};
 const id={type:'string',pattern:'^[a-f0-9]{64}$'};
 const readSchemas:Record<string,{properties:Record<string,unknown>;required:string[]}>= {
+  youtubeaccount:{properties:{projectId:project},required:['projectId']},
+  youtubevideos:{properties:{projectId:project},required:['projectId']},
+  youtubeanalytics:{properties:{projectId:project,startDate:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$'},endDate:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$'}},required:['projectId','startDate','endDate']},
   capabilities:{properties:{projectId:project},required:['projectId']},
   inbox:{properties:{projectId:project,cursor:{type:'string'},limit:{type:'integer',minimum:1,maximum:100}},required:['projectId']},
   status:{properties:{projectId:project,planId:id},required:['projectId','planId']},
@@ -21,6 +24,7 @@ export function validMcpReadArguments(action:string,args:unknown){
   const a=args as Record<string,unknown>;
   if(Object.keys(a).some(k=>!(k in schema.properties))||schema.required.some(k=>a[k]===undefined))return false;
   if(typeof a.projectId!=='string'||!a.projectId)return false;
+  for(const k of ['startDate','endDate'])if(a[k]!==undefined&&(typeof a[k]!=='string'||!/^\d{4}-\d\d-\d\d$/.test(a[k] as string)))return false;
   if(a.planId!==undefined&&(typeof a.planId!=='string'||!/^[a-f0-9]{64}$/.test(a.planId)))return false;
   if(a.cursor!==undefined&&typeof a.cursor!=='string')return false;
   if(a.after!==undefined&&(!Number.isInteger(a.after)||Number(a.after)<0))return false;
