@@ -3,7 +3,7 @@ import { isAbsolute, join } from 'node:path';
 import type { Plan, Event } from './contract.js';
 import { fail } from './contract.js';
 export type Journal = { version: 1; binding: string; plans: Record<string,Plan>; keys: Record<string,string>;
-  deliveries: Record<string,string>; pauses: Record<string,boolean>; reconcileCursor?: number; events: Event[] };
+  deliveries: Record<string,string>; pauses: Record<string,boolean>; reconcileCursor?: number; bufferReconcileAt?:Record<string,number>; events: Event[] };
 export const emptyJournal = (binding:string):Journal => ({version:1,binding,plans:{},keys:{},deliveries:{},pauses:{},events:[]});
 export interface Store { transaction<T>(run:(j:Journal,save:()=>Promise<void>)=>Promise<T>):Promise<T> }
 // Single-instance durable file transaction, based on the existing ingest journal.

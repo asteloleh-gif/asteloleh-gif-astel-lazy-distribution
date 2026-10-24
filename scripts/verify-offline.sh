@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+cd "$(dirname "$0")/.."
 # Public registry dependency installation only; no application production credentials.
 verification_home=$(mktemp -d)
 trap 'rm -rf "$verification_home"' EXIT HUP INT TERM

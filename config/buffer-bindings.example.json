@@ -1,0 +1,12 @@
+{
+  "instagram": [
+    {"accountKey":"astel.us:instagram","platform":"instagram","channelId":"6add103a778b240e2fb3b052"},
+    {"accountKey":"astel.u:instagram","platform":"instagram","channelId":"6add0fca778b240e2fb3a9e6"},
+    {"accountKey":"leoakastel:instagram","platform":"instagram","channelId":"6a976d44065799be466ec3b6"}
+  ],
+  "threads": [
+    {"accountKey":"astel.us:threads","platform":"threads","channelId":"6a76664c99afb44349216b3e"},
+    {"accountKey":"astel.u:threads","platform":"threads","channelId":"6a76657f99afb44349215706"},
+    {"accountKey":"leoakastel:threads","platform":"threads","channelId":"6a7666c399afb44349217593"}
+  ]
+}
