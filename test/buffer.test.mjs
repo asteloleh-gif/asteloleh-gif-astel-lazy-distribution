@@ -105,3 +105,10 @@ test('automatic Buffer polling is due-only, fair, and persists one hourly read p
  await hub.store.transaction(async(j,save)=>{j.bufferReconcileAt['buffer-threads']=Date.now()-3600001;await save();});
  await reconcileActive(hub);assert.equal(calls.length,2);assert.notEqual(calls[0],calls[1]);
 });
+test('delegated release applies only to trusted server approval actor; producer payload cannot grant it',async()=>{
+ let calls=0;const fetcher=async()=>{calls++;return response({createPost:{__typename:'PostActionSuccess',post:remote}});};
+ const a=new BufferAdapter('buffer-threads','fixture','account',[binding],budget,true,fetcher,undefined,[],['kevin-cloud']);
+ await assert.rejects(()=>a.submit(c,async()=>{}),e=>e.code==='BUFFER_MATERIAL_NOT_RELEASED');
+ const spoofed=structuredClone(c);spoofed.plan.approval={actor:'kevin-cloud'};await assert.rejects(()=>a.submit(spoofed,async()=>{}),e=>e.code==='BUFFER_MATERIAL_NOT_RELEASED');assert.equal(calls,0);
+ await a.submit({...c,approvalActor:'kevin-cloud'},async()=>{});assert.equal(calls,1);
+});

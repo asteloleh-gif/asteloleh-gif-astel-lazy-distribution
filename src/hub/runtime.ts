@@ -19,6 +19,12 @@ export function requireSelfHostedOrigin(origin:string){
 export function configuredHub(){
   const credentials:Credential[]=JSON.parse(process.env.LD_CALLERS_JSON??'[]');
   const routes:Route[]=JSON.parse(process.env.LD_ROUTES_JSON??'[]');
+  if(process.env.LD_KEVIN_CLOUD_ENABLED==='true'){
+    const token=process.env.LD_KEVIN_HUB_TOKEN;
+    if(!token||token.length<40||credentials.some(c=>c.token===token||c.principal.id==='kevin-cloud'))fail('KEVIN_CLOUD_CREDENTIAL_REQUIRED',503);
+    credentials.push({token:token!,principal:{id:'kevin-cloud',role:'owner',delegatedApproval:true,projects:['copilot'],scopes:['submit','status','review','approve','schedule','cancel','reconcile','pause','editorial']}});
+  }
+
   const directory=process.env.LD_STORAGE_DIR,binding=process.env.LD_STORAGE_BINDING;
   const verified=JSON.parse(process.env.LD_OPENPOST_CERTIFICATION_JSON??'null');
   const origin=process.env.LD_OPENPOST_ORIGIN,token=process.env.LD_OPENPOST_TOKEN,workspace=process.env.LD_OPENPOST_WORKSPACE;
@@ -34,7 +40,7 @@ export function configuredHub(){
     if(directory&&token&&account)adapters[`buffer-${platform}`]=new BufferAdapter(`buffer-${platform}`,token,account,bindings,
       new FileBufferBudget(directory),process.env.LD_BUFFER_ENABLE_WRITES==='true',fetch,
       platform==='threads'?threadsConfirmer(JSON.parse(process.env.LD_THREADS_READ_BINDINGS_JSON??'[]')):undefined,
-      JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'));
+      JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'),process.env.LD_KEVIN_CLOUD_ENABLED==='true'?['kevin-cloud']:[]);
   }
   // Subteam is a separate read/validation-only connector until its own release.
   // The global production write switch never enables this account.

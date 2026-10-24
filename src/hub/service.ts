@@ -12,7 +12,7 @@ export class DistributionHub {
     authorize(p,scopes[action],args.projectId);
     if(action==='importeditorial'){
       if(!this.editorial)return fail('EDITORIAL_NOT_CONFIGURED',503);
-      if(p.role!=='producer')return fail('EDITORIAL_PRODUCER_REQUIRED',403);
+      if(p.role!=='producer'&&!(p.role==='owner'&&p.delegatedApproval===true))return fail('EDITORIAL_PRODUCER_REQUIRED',403);
       return this.editorial.sync(this,p,args.projectId);
     }
     if(action==='capabilities') return {contractVersion:1,routes:this.routes.filter(r=>r.projectId===args.projectId).map(r=>({...r,capabilities:this.adapters[r.adapter]?.capabilities()??null})),aiCalls:0};
@@ -25,7 +25,7 @@ export class DistributionHub {
         const page=all.slice(0,limit);
         return {projectId:args.projectId,items:page.map(plan=>({planId:plan.id,digest:plan.digest,brandId:plan.input.brandId,contentId:plan.input.contentId,
           revision:plan.input.revision,state:plan.state,requiresOwnerApproval:plan.state==='NEEDS_APPROVAL',
-          canApprove:plan.state==='NEEDS_APPROVAL'&&p.role==='owner'&&p.scopes.includes('approve')&&plan.submittedBy!==p.id,
+          canApprove:plan.state==='NEEDS_APPROVAL'&&p.role==='owner'&&p.scopes.includes('approve')&&(plan.submittedBy!==p.id||p.delegatedApproval===true),
           variants:structuredClone(plan.input.variants),assets:structuredClone(plan.input.assets),
           deliveries:structuredClone(plan.deliveries)})),nextCursor:all.length>limit?page.at(-1)!.id:null,
           eventCursor:j.events.filter(e=>e.projectId===args.projectId).at(-1)?.sequence??0,aiCalls:0};
@@ -72,7 +72,7 @@ export class DistributionHub {
         plan.state='NEEDS_APPROVAL';this.event(j,plan);await save();return {planId:plan.id,digest:plan.digest,state:plan.state};
       }
       if(action==='approve'){
-        if(p.id===plan.submittedBy) return fail('SELF_APPROVAL_DENIED',403);
+        if(p.id===plan.submittedBy&&p.delegatedApproval!==true) return fail('SELF_APPROVAL_DENIED',403);
         if(args.digest!==plan.digest||plan.state!=='NEEDS_APPROVAL') return fail('EXACT_REVIEW_REQUIRED');
         plan.approval={reference:hash([plan.id,plan.digest,p.id,this.now()]),digest:plan.digest,actor:p.id,at:this.now()};
         plan.state='APPROVED';this.event(j,plan);await save();return structuredClone(plan);
@@ -128,7 +128,7 @@ export class DistributionHub {
     });
   }
   private adapter(d:Delivery,forScheduling=false){const a=this.adapters[d.adapter];if(!a||d.executionOwner!=='provider'||(forScheduling&&!a.capabilities().schedule)) return fail('ADAPTER_BLOCKED',503);return a;}
-  private command(plan:Plan,d:Delivery){return {deliveryId:d.id,plan:structuredClone(plan.input),target:structuredClone(d.target)};}
+  private command(plan:Plan,d:Delivery){return {deliveryId:d.id,plan:structuredClone(plan.input),target:structuredClone(d.target),approvalActor:plan.approval?.actor};}
   private apply(d:Delivery,r:Receipt){
     if(!r||!['PROVIDER_ACCEPTED','PUBLISHED','FAILED','CANCELLED'].includes(r.state)||typeof r.providerId!=='string'||!r.providerId||
       (d.receipt?.providerId&&d.receipt.providerId!==r.providerId)||

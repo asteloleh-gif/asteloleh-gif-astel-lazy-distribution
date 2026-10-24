@@ -147,3 +147,11 @@ test('runtime allows only our self-hosted origin; Hosted/other origins fail befo
  assert.equal(requireSelfHostedOrigin('https://openpost-production-77ea.up.railway.app/'),'https://openpost-production-77ea.up.railway.app');
  process.env.LD_OPENPOST_ORIGIN='https://app.openpo.st';assert.throws(()=>configuredHub(),e=>e.code==='SELF_HOSTED_OPENPOST_REQUIRED');delete process.env.LD_OPENPOST_ORIGIN;assert.equal(networkCalls,0);
 });
+test('explicit delegated owner may approve own exact reviewed material; normal owner still cannot',async t=>{
+ const f=await fixture(t);const delegated={...owner,id:'kevin-cloud',projects:['copilot'],delegatedApproval:true};
+ const plan=await f.run('submit',{input:input()},delegated);const review=await f.run('review',{planId:plan.id},delegated);
+ await denied(()=>f.run('approve',{planId:plan.id,digest:review.digest},{...delegated,delegatedApproval:false}),'SELF_APPROVAL_DENIED');
+ await denied(()=>f.run('approve',{planId:plan.id,digest:'0'.repeat(64)},delegated),'EXACT_REVIEW_REQUIRED');
+ const approved=await f.run('approve',{planId:plan.id,digest:review.digest},delegated);assert.equal(approved.state,'APPROVED');assert.equal(approved.approval.actor,'kevin-cloud');
+ const a=await f.run('schedule',{planId:plan.id},delegated);const b=await f.run('schedule',{planId:plan.id},delegated);assert.equal(a.deliveries[0].receipt.providerId,b.deliveries[0].receipt.providerId);assert.equal(f.calls.filter(c=>c[0]==='submit').length,1);
+});

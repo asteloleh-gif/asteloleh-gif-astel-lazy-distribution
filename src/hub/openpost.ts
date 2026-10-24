@@ -1,7 +1,7 @@
 import { fail } from './contract.js';
 import type { PlanInput, Target, Receipt } from './contract.js';
 export type ReadContext = { cancelRequested?:boolean };
-export type AdapterCommand = { deliveryId:string; plan:PlanInput; target:Target };
+export type AdapterCommand = { approvalActor?:string; deliveryId:string; plan:PlanInput; target:Target };
 export interface PublishingAdapter {
   readonly id:string;
   readonly simulation:boolean;
