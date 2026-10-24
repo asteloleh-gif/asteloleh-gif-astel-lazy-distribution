@@ -36,3 +36,6 @@ export interface DestinationConnector {
   readonly name: string;
   publish(draft: DistributionDraft): Promise<unknown>;
 }
+
+// Versioned shared hub contract; legacy connector types remain compatible.
+export type { PlanInput, Target, Asset, Receipt, Route, State } from "../hub/contract.js";

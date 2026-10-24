@@ -1,5 +1,9 @@
 # Astel Lazy Distribution
 
+Current owner direction: shared ecosystem Distribution Hub. Copilot is the first client; OpenPost is a delegated publishing adapter. See [implementation/runbook](docs/DISTRIBUTION_HUB.md) and [ADR 001](docs/ARCHITECTURE_DECISIONS.md). This is a local, undeployed candidate. Legacy live ingest/publish bypasses are retired in this candidate; prepared-content preview is deterministic and AI-free.
+
+The earlier MVP/ingestion descriptions below are historical and superseded only where they imply independent publication ownership or AI preview.
+
 AI-assisted distribution layer for sending one source asset to multiple external traffic channels.
 
 ## MVP

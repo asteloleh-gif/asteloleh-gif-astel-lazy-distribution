@@ -63,19 +63,21 @@ test('HTTP security boundaries (offline)', async t => {
   });
   delete process.env.OPENAI_API_KEY;
   delete process.env.PUBLISH_ENABLED;
-  await t.test('authorized publish defaults to preview with no Pinterest call', async () => {
-    const result = await call('/api/publish','POST','Bearer offline-fixture-only',
-      JSON.stringify({youtubeUrl:'https://youtu.be/fixture1234',boardId:'fixture-board'}));
-    assert.equal(result.status,200);
-    const body = JSON.parse(result.data);
-    assert.equal(body.mode,'preview');
-    assert.equal(body.draft.mediaUrl,'https://fixture.invalid/thumbnail.jpg');
-    assert.equal(calls.length,1);
+  await t.test('legacy writes and paid GET preview are disabled', async () => {
+    for(const path of ['/api/publish','/api/ingest/run','/api/ingest/reconcile']) {
+      assert.equal((await call(path,'POST','Bearer offline-fixture-only','{}')).status,410);
+    }
+    assert.equal((await call('/api/preview','GET','Bearer offline-fixture-only')).status,405);
+    assert.equal(calls.length,0);
+  });
+  await t.test('deterministic POST preview makes no AI or publication call even with AI credential', async () => {
+    process.env.OPENAI_API_KEY='fixture-ignored';
+    const result=await call('/api/preview','POST','Bearer offline-fixture-only',JSON.stringify({youtubeUrl:'https://youtu.be/fixture1234'}));
+    assert.equal(result.status,200);assert.equal(JSON.parse(result.data).mode,'preview');assert.equal(calls.length,1);
   });
   await t.test('async preview failures are caught without leaking upstream text', async () => {
-    globalThis.fetch = async () => { throw new Error('private upstream diagnostic'); };
-    const result = await call('/api/preview?youtubeUrl=https://youtu.be/fixture1234','GET','Bearer offline-fixture-only');
-    assert.equal(result.status,500);
-    assert.equal(result.data.includes('private upstream diagnostic'),false);
+    globalThis.fetch=async()=>{throw Error('private diagnostic');};
+    const result=await call('/api/preview','POST','Bearer offline-fixture-only',JSON.stringify({youtubeUrl:'https://youtu.be/fixture1234'}));
+    assert.equal(result.status,500);assert.equal(result.data.includes('private diagnostic'),false);
   });
 });

@@ -1,14 +1,20 @@
-import { ingestRun, ingestStatus, ingestReconcile } from "./ingest/worker.js";
-import { IngestError } from "./ingest/store.js";
+import { hubApi, readBoundedJson } from "./hub/api.js";
+import type { DistributionHub } from "./hub/service.js";
+import type { Credential } from "./hub/contract.js";
+import { HubError } from "./hub/contract.js";
 import { createServer } from "node:http";
 import { YouTubeSource } from "./connectors/youtube.js";
 import { PinterestDestination } from "./connectors/pinterest.js";
 import { packageForPinterest } from "./ai/pinterest-packager.js";
 
-export function createAppServer() {
+export function createAppServer(options: {hub?: DistributionHub; credentials?: Credential[]} = {}) {
+const control=hubApi(options.hub,options.credentials??[]);
+let legacyWindow=Date.now(),legacyRequests=0;
 return createServer(async (req, res) => {
   try {
     const requestUrl = new URL(req.url ?? "/", "http://localhost");
+
+    if (requestUrl.pathname.startsWith("/api/distribution/") || requestUrl.pathname === "/mcp") return await control(req,res);
 
     if (req.method === "GET" && requestUrl.pathname === "/health") {
       return json(res, 200, { ok: true, service: "astel-lazy-distribution" });
@@ -62,15 +68,14 @@ return createServer(async (req, res) => {
       }
     }
 
-    if (req.method === "POST" && requestUrl.pathname === "/api/ingest/run") {
-      return json(res, 200, await ingestRun());
+    if (requestUrl.pathname.startsWith("/api/")) {
+      if(Date.now()-legacyWindow>=60000){legacyWindow=Date.now();legacyRequests=0;}
+      if(++legacyRequests>30)return json(res,429,{error:"RATE_LIMITED"});
     }
-    if (req.method === "GET" && requestUrl.pathname === "/api/ingest/status") {
-      return json(res, 200, await ingestStatus());
-    }
-    if (req.method === "POST" && requestUrl.pathname === "/api/ingest/reconcile") {
-      const body = await readJson(req);
-      return json(res, 200, await ingestReconcile(String(body.jobId ?? ""), String(body.pinId ?? "")));
+
+    // Legacy direct writes cannot bypass the shared exact-version approval.
+    if (requestUrl.pathname.startsWith("/api/ingest/") || requestUrl.pathname === "/api/publish") {
+      return json(res, 410, {error:"use scoped distribution hub"});
     }
 
     if (req.method === "GET" && requestUrl.pathname === "/api/pinterest/sandbox-check") {
@@ -87,40 +92,17 @@ return createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && requestUrl.pathname === "/api/preview") {
-      const youtubeUrl = requestUrl.searchParams.get("youtubeUrl") ?? "";
-      const boardId = requestUrl.searchParams.get("boardId") ?? process.env.PINTEREST_BOARD_ID ?? "";
-      return await handlePreview(res, youtubeUrl, boardId);
+      return json(res, 405, {error:"POST preview required"});
     }
 
-    if (req.method === "POST" && (requestUrl.pathname === "/api/preview" || requestUrl.pathname === "/api/publish")) {
-      // All live publication must pass through the durable ingestion journal.
-      if (requestUrl.pathname === "/api/publish" && process.env.PUBLISH_ENABLED === "true") {
-        return json(res, 409, { error: "use the durable ingestion workflow for live publishing" });
-      }
-      const body = await readJson(req);
-      const youtubeUrl = String(body.youtubeUrl ?? "");
-      const boardId = String(body.boardId ?? process.env.PINTEREST_BOARD_ID ?? "");
-
-      if (requestUrl.pathname === "/api/preview") {
-        return await handlePreview(res, youtubeUrl, boardId);
-      }
-
-      if (!youtubeUrl) return json(res, 400, { error: "youtubeUrl is required" });
-      if (!process.env.YOUTUBE_API_KEY) return json(res, 500, { error: "YOUTUBE_API_KEY is not configured" });
-
-      const source = await new YouTubeSource(process.env.YOUTUBE_API_KEY).load({ url: youtubeUrl });
-      const draft = await packageForPinterest(source, boardId);
-
-      if (process.env.PUBLISH_ENABLED !== "true") {
-        return json(res, 200, { mode: "preview", source, draft });
-      }
-
-
+    if (req.method === "POST" && requestUrl.pathname === "/api/preview") {
+      const body = await readBoundedJson(req);
+      return await handlePreview(res, String(body.youtubeUrl ?? ""), String(body.boardId ?? ""));
     }
 
     return json(res, 404, { error: "not found" });
   } catch (error) {
-    if (error instanceof IngestError) return json(res, error.status, { error: error.message });
+    if (error instanceof HubError) return json(res, error.status, { error: error.code });
     return json(res, 500, { error: "upstream request failed" });
   }
 });
@@ -144,11 +126,4 @@ function json(res: any, status: number, data: unknown) {
 function html(res: any, status: number, body: string) {
   res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
   res.end(body);
-}
-
-async function readJson(req: any): Promise<any> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
-  if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }

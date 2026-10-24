@@ -1,3 +1,7 @@
+# Distribution ownership update — 2026-10-24
+
+New content dispatch goes through the shared Hub contract; connectors below remain source/adaptation building blocks. A connector being code-ready is not live acceptance. `DestinationConnector.publish` remains compatible but is not exposed as an approval bypass. See DISTRIBUTION_HUB.md and ADR 001.
+
 # Connector roadmap
 
 Astel Lazy Distribution is source-agnostic. A source normalizes content into a `ContentEnvelope`; destination connectors publish platform-specific drafts.
