@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {OpenPostHttpPort} from '../dist/hub/openpost-http.js';
 import {hash} from '../dist/hub/contract.js';
-process.env={};
+process.env={NODE_TEST_CONTEXT:process.env.NODE_TEST_CONTEXT??''};
 const command=()=>({deliveryId:'delivery-1',plan:{projectId:'copilot',contentId:'prepared',variants:{main:{text:'Prepared text'}},assets:[]},target:{accountKey:'astel.us:threads',platform:'threads',variant:'main',scheduledAt:'2030-01-01T00:00:00Z'}});
 function fixture(options={}){
  const c=command(),calls=[];let publication;

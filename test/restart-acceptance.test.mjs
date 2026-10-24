@@ -7,7 +7,7 @@ import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {emptyJournal} from '../dist/hub/store.js';
-process.env={};
+process.env={NODE_TEST_CONTEXT:process.env.NODE_TEST_CONTEXT??''};
 test('isolated HTTP scenario: process restart retains delegated queue; replay does not duplicate; cancel reaches backend and survives second restart',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'ld-process-acceptance-'));t.after(()=>rm(dir,{recursive:true,force:true}));
  await writeFile(join(dir,'hub-storage-manifest.json'),JSON.stringify({version:1,binding:'restart-fixture',durable:true}));await writeFile(join(dir,'hub-journal.json'),JSON.stringify(emptyJournal('restart-fixture')));

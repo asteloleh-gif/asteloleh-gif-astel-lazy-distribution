@@ -10,7 +10,7 @@ import {FileStore,emptyJournal} from '../dist/hub/store.js';
 import {OpenPostAdapter,inspectOpenPost} from '../dist/hub/openpost.js';
 import {fromCopilot} from '../dist/hub/copilot.js';
 import {createAppServer} from '../dist/server.js';
-process.env={};
+process.env={NODE_TEST_CONTEXT:process.env.NODE_TEST_CONTEXT??''};
 let networkCalls=0;
 globalThis.fetch=async()=>{networkCalls++;throw Error('NETWORK_FORBIDDEN');};
 const producer={id:'copilot-agent',role:'producer',projects:['copilot','mock-project'],scopes:['submit','status','review','schedule','cancel','reconcile']};

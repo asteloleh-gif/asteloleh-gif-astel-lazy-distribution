@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import { createAppServer } from '../dist/server.js';
 
 // No host credentials are read or used; every upstream request is intercepted.
-process.env = {};
+process.env = {NODE_TEST_CONTEXT:process.env.NODE_TEST_CONTEXT??''};
 const calls = [];
 globalThis.fetch = async (url) => {
   calls.push(String(url));
