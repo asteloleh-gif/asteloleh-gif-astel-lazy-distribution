@@ -38,7 +38,7 @@ export class BufferAdapter implements PublishingAdapter {
     private confirm?: (link:string,c:AdapterCommand)=>Promise<{platformPostId:string;confirmedAt:string}|undefined>){}
   capabilities(){return {executionOwner:'provider' as const,schedule:this.enabled,cancel:this.enabled,live:this.enabled};}
   private binding(c:AdapterCommand){
-    if(!this.enabled||!this.token||!this.accountId)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
+    if(!this.token||!this.accountId)return fail('BUFFER_RELEASE_NOT_CONFIGURED',503);
     const matches=this.bindings.filter(b=>b.accountKey===c.target.accountKey&&b.platform===c.target.platform);
     if(matches.length!==1)return fail('BUFFER_BINDING_DENIED',403);return matches[0];
   }
@@ -59,6 +59,7 @@ export class BufferAdapter implements PublishingAdapter {
     if(c.target.platform==='instagram'&&(v.asset===undefined||c.plan.assets[v.asset]?.kind!=='image'))return fail('BUFFER_IMAGE_ONLY',400);
   }
   async submit(c:AdapterCommand,checkpoint:(id:string)=>Promise<void>):Promise<Receipt>{
+    if(!this.enabled)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
     await this.validate(c);const b=this.binding(c),v=c.plan.variants[c.target.variant];
     const asset=v.asset===undefined?undefined:c.plan.assets[v.asset];
     const input={channelId:b.channelId,text:v.text,assets:asset?[{image:{url:asset.url}}]:[],
@@ -88,6 +89,7 @@ export class BufferAdapter implements PublishingAdapter {
   private async post(id:string){return (await this.query(`query($input:PostInput!){post(input:$input){${fields}}}`,{input:{id}})).post;}
   async status(id:string,c:AdapterCommand){const p=await this.post(id);this.check(p,c,id);return this.receipt(p,c);}
   async cancel(id:string,c:AdapterCommand):Promise<Receipt>{
+    if(!this.enabled)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
     const p=await this.post(id);this.check(p,c,id);
     if(p.status!=='scheduled'||!p.allowedActions?.includes('deletePost'))return fail('BUFFER_CANCEL_NOT_SAFE',409);
     const data=await this.query('mutation($input:DeletePostInput!){deletePost(input:$input){__typename ... on DeletePostSuccess{id}}}',{input:{id}},true);

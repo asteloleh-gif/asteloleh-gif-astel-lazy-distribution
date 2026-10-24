@@ -7,6 +7,9 @@ import {BufferAdapter,FileBufferBudget} from '../dist/hub/buffer.js';
 import {FileStore,emptyJournal} from '../dist/hub/store.js';
 import {DistributionHub} from '../dist/hub/service.js';
 import {reconcileActive} from '../dist/hub/reconciler.js';
+import {provision} from '../dist/hub/provision.js';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 process.env={NODE_TEST_CONTEXT:process.env.NODE_TEST_CONTEXT??''};
 const c={deliveryId:'delivery',target:{platform:'threads',accountKey:'ua-threads',variant:'text',scheduledAt:'2030-01-01T00:00:00Z',timezone:'America/Chicago'},plan:{contractVersion:1,projectId:'copilot',brandId:'ua',contentId:'content',revision:1,source:{producer:'copilot',reference:'rec-1'},variants:{text:{text:'Prepared'}},assets:[],destinations:[],requestId:'r',idempotencyKey:'k',mode:'live'}};
 c.plan.destinations=[c.target];
@@ -24,6 +27,27 @@ test('Buffer disabled or cross-account binding cannot issue network writes',asyn
  let calls=0;const fetcher=async()=>{calls++;throw Error('should not run');};
  await assert.rejects(()=>adapter(fetcher,false).submit(c,async()=>{}),e=>e.code==='BUFFER_RELEASE_NOT_ENABLED');
  const foreign=structuredClone(c);foreign.target.accountKey='foreign';await assert.rejects(()=>adapter(fetcher).submit(foreign,async()=>{}));assert.equal(calls,0);
+});
+test('review can validate a configured Buffer route while execution remains disabled',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'buffer-approval-only-'));t.after(()=>rm(dir,{recursive:true,force:true}));await provision(dir,'approval-only');
+ let calls=0;const a=adapter(async()=>{calls++;throw Error('must not call');},false);
+ const route={projectId:'copilot',brandId:'ua',platform:'threads',accountKey:'ua-threads',adapter:'buffer-threads',executionOwner:'provider',mode:'live'};
+ const h=new DistributionHub(new FileStore(dir,'approval-only'),[route],[],{'buffer-threads':a},()=> '2029-01-01T00:00:00Z');
+ const producer={id:'copilot',role:'producer',projects:['copilot'],scopes:['submit','review','schedule']},owner={id:'oleg',role:'owner',projects:['copilot'],scopes:['approve']};
+ const p=await h.execute(producer,'submit',{projectId:'copilot',input:c.plan}),args={projectId:'copilot',planId:p.id};
+ await h.execute(producer,'review',args);await h.execute(owner,'approve',{...args,digest:p.digest});
+ await assert.rejects(()=>h.execute(producer,'schedule',args),e=>e.code==='ADAPTER_BLOCKED');assert.equal(calls,0);
+ await provision(dir,'approval-only');assert.ok(JSON.parse(await readFile(join(dir,'hub-journal.json'),'utf8')).plans[p.id]);
+ await assert.rejects(()=>provision(dir,'wrong-binding'),/BINDING_MISMATCH/);
+});
+test('private connector canary is simulation-only and startup replay cannot create another card',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'connector-canary-'));t.after(()=>rm(dir,{recursive:true,force:true}));await provision(dir,'canary');
+ const env={LD_STORAGE_DIR:dir,LD_STORAGE_BINDING:'canary',LD_CONNECTOR_CANARY:'true',LD_BUFFER_ENABLE_WRITES:'false',LD_BUFFER_THREADS_TOKEN:'fixture-not-real',LD_BUFFER_THREADS_ACCOUNT_ID:'fixture-account',
+  LD_BUFFER_THREADS_BINDINGS_JSON:JSON.stringify([{platform:'threads',accountKey:'astel.us:threads',channelId:'fixture-channel'}]),
+  LD_ROUTES_JSON:JSON.stringify([{projectId:'copilot',brandId:'astel.us',platform:'threads',accountKey:'astel.us:threads',adapter:'buffer-threads',executionOwner:'provider',mode:'simulation'}])};
+ const script=`globalThis.fetch=async()=>{throw Error('NETWORK_FORBIDDEN')};await import(${JSON.stringify(new URL('../dist/hub/connector-canary.js',import.meta.url).href)})`;
+ for(let i=0;i<2;i++)await promisify(execFile)(process.execPath,['--input-type=module','-e',script],{env});
+ const journal=JSON.parse(await readFile(join(dir,'hub-journal.json'),'utf8'));const plans=Object.values(journal.plans);assert.equal(plans.length,1);assert.equal(plans[0].state,'NEEDS_APPROVAL');assert.equal(plans[0].input.mode,'simulation');assert.equal(plans[0].deliveries[0].attempts,0);
 });
 test('Instagram single image uses the approved URL; uncertified Reel blocked',async()=>{
  const command=structuredClone(c);command.target.platform='instagram';command.target.accountKey='ua-instagram';

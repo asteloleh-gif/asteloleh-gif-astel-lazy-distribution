@@ -77,7 +77,7 @@ export class DistributionHub {
         for(const d of plan.deliveries){
           if(d.state!=='DRAFT'&&d.state!=='SCHEDULED')continue;
           if(j.pauses[hash([args.projectId])]||j.pauses[hash([args.projectId,d.target.accountKey])]||j.pauses.global) return fail('ROUTE_PAUSED');
-          const a=this.adapter(d);
+          const a=this.adapter(d,true);
           if(plan.input.mode==='live'&&Date.parse(d.target.scheduledAt)<=Date.parse(this.now()))return fail('LIVE_SCHEDULE_MUST_BE_FUTURE');
           if(plan.input.mode==='live'&&a.simulation) return fail('SIMULATOR_CANNOT_EXECUTE_LIVE');
           await a.validate(this.command(plan,d));
@@ -121,7 +121,7 @@ export class DistributionHub {
       return fail('UNKNOWN_ACTION',404);
     });
   }
-  private adapter(d:Delivery){const a=this.adapters[d.adapter];if(!a||d.executionOwner!=='provider'||!a.capabilities().schedule) return fail('ADAPTER_BLOCKED',503);return a;}
+  private adapter(d:Delivery,forScheduling=false){const a=this.adapters[d.adapter];if(!a||d.executionOwner!=='provider'||(forScheduling&&!a.capabilities().schedule)) return fail('ADAPTER_BLOCKED',503);return a;}
   private command(plan:Plan,d:Delivery){return {deliveryId:d.id,plan:structuredClone(plan.input),target:structuredClone(d.target)};}
   private apply(d:Delivery,r:Receipt){
     if(!r||!['PROVIDER_ACCEPTED','PUBLISHED','FAILED','CANCELLED'].includes(r.state)||typeof r.providerId!=='string'||!r.providerId||
