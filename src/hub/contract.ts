@@ -5,6 +5,7 @@ export class HubError extends Error {
 }
 export const fail = (code: string, status = 409): never => { throw new HubError(status, code); };
 export type Scope = 'submit'|'status'|'review'|'approve'|'schedule'|'cancel'|'reconcile'|'pause';
+export const actionScopes:Record<string,Scope>={capabilities:'status',inbox:'status',submit:'submit',preview:'submit',review:'review',approve:'approve',schedule:'schedule',status:'status',cancel:'cancel',reconcile:'reconcile',pause:'pause',resume:'pause',events:'status',metrics:'status'};
 export type Principal = { id: string; role: 'producer'|'owner'; scopes: Scope[]; projects: string[] };
 export type Credential = { token: string; principal: Principal };
 export type Route = { projectId: string; brandId: string; platform: 'threads'|'instagram'; accountKey: string;

@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { authenticate, fail, HubError } from './contract.js';
+import { authenticate, fail, HubError, actionScopes } from './contract.js';
 import type { Credential } from './contract.js';
 import type { DistributionHub } from './service.js';
-export const actions=['capabilities','submit','preview','review','approve','schedule','status','cancel','reconcile','pause','resume','events','metrics'] as const;
+export const actions=Object.keys(actionScopes);
 export async function readBoundedJson(req:IncomingMessage){
   let size=0;const chunks:Buffer[]=[];
   for await(const chunk of req){size+=chunk.length;if(size>128*1024)fail('BODY_TOO_LARGE',413);chunks.push(Buffer.from(chunk));}
@@ -24,7 +24,7 @@ export function hubApi(hub:DistributionHub|undefined,credentials:Credential[]){
         if(body.jsonrpc!=='2.0')return json(400,{error:'INVALID_RPC'});
         if(body.method==='initialize')return json(200,{jsonrpc:'2.0',id:body.id,result:{protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'astel-distribution-hub',version:'1'}}});
         if(body.method==='notifications/initialized'){res.writeHead(202);res.end();return;}
-        if(body.method==='tools/list')return json(200,{jsonrpc:'2.0',id:body.id,result:{tools:actions.map(a=>({name:`distribution_${a}`,description:`Scoped distribution ${a}`,inputSchema:{type:'object',properties:{projectId:{type:'string'},input:{type:'object'},planId:{type:'string'},digest:{type:'string'},deliveryId:{type:'string'},accountKey:{type:'string'},after:{type:'integer'},global:{type:'boolean'}},required:['projectId']}}))}});
+        if(body.method==='tools/list')return json(200,{jsonrpc:'2.0',id:body.id,result:{tools:actions.filter(a=>p.scopes.includes(actionScopes[a])&&(!['approve','pause','resume'].includes(a)||p.role==='owner')).map(a=>({name:`distribution_${a}`,description:`Scoped distribution ${a}`,annotations:{readOnlyHint:['capabilities','inbox','status','events','metrics','preview'].includes(a),destructiveHint:['schedule','cancel'].includes(a),openWorldHint:['review','schedule','cancel','reconcile'].includes(a)},inputSchema:{type:'object',properties:{projectId:{type:'string'},input:{type:'object'},planId:{type:'string'},digest:{type:'string'},deliveryId:{type:'string'},accountKey:{type:'string'},after:{type:'integer'},cursor:{type:'string'},limit:{type:'integer',minimum:1,maximum:100},global:{type:'boolean'}},required:['projectId']}}))}});
         if(body.method!=='tools/call')return json(200,{jsonrpc:'2.0',id:body.id,error:{code:-32601,message:'METHOD_NOT_FOUND'}});
         const name=body.params?.name;
         if(typeof name!=='string'||!name.startsWith('distribution_'))return fail('UNKNOWN_TOOL',404);

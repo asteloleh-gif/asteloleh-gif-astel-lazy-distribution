@@ -1,17 +1,29 @@
-import { authorize, fail, hash, validate } from './contract.js';
+import { authorize, fail, hash, validate, actionScopes } from './contract.js';
 import type { Principal, Route, Plan, PlanInput, Delivery, Receipt, State, Scope } from './contract.js';
 import type { Store, Journal } from './store.js';
 import type { PublishingAdapter } from './openpost.js';
 export class DistributionHub {
   constructor(readonly store:Store,readonly routes:Route[],readonly mediaHosts:string[],readonly adapters:Record<string,PublishingAdapter>,readonly now=()=>new Date().toISOString()){}
   async execute(p:Principal,action:string,args:any):Promise<unknown>{
-    const scopes:Record<string,Scope>={capabilities:'status',submit:'submit',preview:'submit',review:'review',approve:'approve',schedule:'schedule',status:'status',cancel:'cancel',reconcile:'reconcile',pause:'pause',resume:'pause',events:'status',metrics:'status'};
+    const scopes=actionScopes;
     if(!Object.hasOwn(scopes,action)) return fail('UNKNOWN_ACTION',404);
     if(!args||typeof args!=='object'||typeof args.projectId!=='string') return fail('PROJECT_REQUIRED',400);
     authorize(p,scopes[action],args.projectId);
     if(action==='capabilities') return {contractVersion:1,routes:this.routes.filter(r=>r.projectId===args.projectId).map(r=>({...r,capabilities:this.adapters[r.adapter]?.capabilities()??null})),aiCalls:0};
     if(action==='preview') return {input:validate(args.input,p,this.routes,this.mediaHosts),aiCalls:0,mutations:0};
     return this.store.transaction(async(j,save)=>{
+      if(action==='inbox'){
+        const limit=args.limit===undefined?25:args.limit;
+        if(!Number.isInteger(limit)||limit<1||limit>100||(args.cursor!==undefined&&typeof args.cursor!=='string'))return fail('INVALID_PAGINATION',400);
+        const all=Object.values(j.plans).filter(plan=>plan.input.projectId===args.projectId&&(!args.cursor||plan.id>args.cursor)).sort((a,b)=>a.id.localeCompare(b.id));
+        const page=all.slice(0,limit);
+        return {projectId:args.projectId,items:page.map(plan=>({planId:plan.id,digest:plan.digest,brandId:plan.input.brandId,contentId:plan.input.contentId,
+          revision:plan.input.revision,state:plan.state,requiresOwnerApproval:plan.state==='NEEDS_APPROVAL',
+          canApprove:plan.state==='NEEDS_APPROVAL'&&p.role==='owner'&&p.scopes.includes('approve')&&plan.submittedBy!==p.id,
+          variants:structuredClone(plan.input.variants),assets:structuredClone(plan.input.assets),
+          deliveries:structuredClone(plan.deliveries)})),nextCursor:all.length>limit?page.at(-1)!.id:null,
+          eventCursor:j.events.filter(e=>e.projectId===args.projectId).at(-1)?.sequence??0,aiCalls:0};
+      }
       if(action==='submit') {
         const input=validate(args.input,p,this.routes,this.mediaHosts);
         if(input.projectId!==args.projectId) return fail('PROJECT_MISMATCH',403);
