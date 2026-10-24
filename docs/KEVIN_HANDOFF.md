@@ -1,28 +1,21 @@
-# Independent Kevin review — prepared, NOT SENT
+# Independent Kevin review — prepared, NOT_SENT
 
-The exact candidate commit and artifact SHA256 are in the accompanying release manifest. Review branch: `review/unified-distribution-hub-20261024`. Upstream base: `0c713f25d809baeb31be47e535a95321a53d115c`; inherited local audit snapshot: `1100f6d1897d5efb36f19254ee463dfd4fbc31c6`. The original dirty checkout was not overwritten. This candidate is not pushed, deployed or live-accepted.
+The deployed baseline is Hub 65500fc and Telegram 2a43205. Private owner approval through the real Telegram MiniApp is verified (APPROVED, actor oleg, 2026-10-24T21:27:34.651Z); PostgreSQL notice ledger independently read sent/cursor=2. Buffer publishing remains disabled. Social Engine was not changed.
 
-No verified Kevin endpoint/recipient associated with this project was found. No task/message has been sent and no independent opinion is claimed. Do not confuse unrelated Battle Box chats or a new subagent with the existing Kevin orchestrator.
+The new editorial candidate continues the same review branch from 65500fc. Exact candidate commit, diff, source archive and test evidence are in the accompanying manifest. Read docs/EDITORIAL_RELEASE.md first; it supersedes older OpenPost/local-only release statements for this pending Buffer path. Historical docs remain evidence, not current instructions.
 
-## Reproduce safely
+No verified direct Kevin recipient/channel is available. No task/message sent, no independent opinion claimed. No replacement Kevin/subagent was started.
 
-Unpack source into a disposable directory. Node 22+ and npm are required. Run `sh scripts/verify-offline.sh`. The script installs public locked dependencies with scripts disabled and a temporary HOME, then compiles/runs tests with an empty environment except PATH/HOME/CI. Do not load `.env` or production secrets. No real PostgreSQL is used. All publisher requests in tests are mocked or redirected explicitly to a local loopback fixture. `test/restart-acceptance.test.mjs` starts child Hub processes, retains the same disposable journal across restarts, confirms exactly one delegated schedule, and checks backend cancellation event before a second restart. Temporary processes/files are cleaned up.
+## Reproduce without credentials
 
-Read `docs/DISTRIBUTION_HUB.md`, latest `docs/SELF_HOSTED_COST_AND_MEDIA.md`, ADR 001 and the incremental/full diffs. Check the cost assumptions against measured usage. Verify exact self-hosted-origin guard; `app.openpo.st` must be rejected before credentials leave the process. Verify no AI request path, legacy raw-write bypass, hidden retries/fallback, self-approval or successful-target resend. Check provider publication/job/platform ID distinctions and cancellation evidence.
+Node 22+ and npm. Run sh scripts/verify-offline.sh. 68 tests are expected, zero skips. Publisher, Airtable and Threads requests are mocked in tests; fixtures are not authority or instructions. No production environment or .env is required. Additional source-readback rehearsal is supplied in the handoff as work/verify-editorial-source.mjs; it reads outputs/editorial-source-readback-2026-10-24.json, uses disposable durable storage, mocked writeback, and never contacts a provider.
 
-## Known limits — release blockers
+Review scope: explicit opt-in and legacy replay rejection; bound account/base/table; no inherited Airtable approval; revision/idempotency/edit races; quota stop/no retries; exact material release digest; fixed HTTPS origins and pagination cursors; Threads proof matching real identity/owner/permalink/text/time before PUBLISHED; no AI; unchanged Social Engine. Inspect new 68-test evidence plus previous restart/cancellation fixtures. Tests do not constitute live platform certification.
 
-- Single durable filesystem / one replica. Stale process lock needs proven old-process termination and manual recovery, not TTL stealing.
-- Real Railway volumes/backup/restore not yet configured or tested. No real OpenPost restart was performed.
-- Owner login exists, but zero social accounts and no provider apps are configured. No server credential was created.
-- No production Hub → OpenPost authenticated connection yet. Exact running v5.2.2/build was read; image digest is proposed for pinning, not yet applied.
-- Native OAuth scopes are broader than publication-only. Do not authorize messaging or other extra scopes by assumption.
-- Private Drive → attested OpenPost working-media import and the Airtable/owner approval interaction are not yet connected. Airtable remains editorial; no new cabinet is proposed.
-- Post-approval edit isolation has not been certified. Do not set certification booleans merely to make tests/live go green.
-- No public canary links/platform IDs exist. No new runtime claim is derived from offline tests.
-- Docker image build was not executed locally (Docker unavailable); base image digest and npm lock are pinned.
-- Older Social Engine local regression: Leo 255 pass, RU 231 pass, UA 293 pass + 1 skipped disposable PostgreSQL integration. These are local copies, not new production acceptance.
+## Safe live review after release permission
 
-## Independent review boundaries
+Read actual queue, source row and owner digest; one execution owner Buffer. Verify schedule identity, true Threads numeric platform ID and real permalink, no duplicate or reroute. Inspect database notice ledger and health. No production writes, public posts, deployment, restart, credential creation or approval on behalf of owner under this handoff. Never collect tokens in GPT chat. If the operator has not securely configured your connector, use the supplied evidence only and report that limitation.
 
-No production mutation, credentials, access expansion, push/merge, deploy, restart or public test is authorized by this handoff. After a separate concrete release approval, read the actual account queue, exact material/time, provider receipts, real platform post and duplicate checks for each account independently. Capture CANCEL_REQUESTED until backend proof exists. Rolling back Hub does not cancel remote schedules. Preserve working Social Engine auto-replies, Airtable cutover and Meta Development mode; Facebook remains off.
+## Known remaining gates
+
+Candidate has not been pushed/deployed. New runtime Airtable access, scoped operator caller and own-Threads read binding require the concrete release approval. Actual public test and provider cancellation have not run. First canary is UA Threads text only; remaining brands need independent acceptance. Instagram requires approved stable media URL and format verification. Operational delivery metrics are not engagement/insight analytics. Single-instance filesystem; stale locks require proof old process stopped, no TTL stealing. No extra paid plan or spending cap increase authorized.

@@ -1,6 +1,6 @@
 import {open,readFile,rename,unlink} from 'node:fs/promises';
 import {join} from 'node:path';
-import {fail} from './contract.js';
+import {fail,hash} from './contract.js';
 import type {Receipt} from './contract.js';
 import type {AdapterCommand,PublishingAdapter} from './openpost.js';
 
@@ -35,7 +35,10 @@ export class BufferAdapter implements PublishingAdapter {
   readonly simulation=false;
   constructor(readonly id:string,private token:string,private accountId:string,private bindings:BufferBinding[],
     private budget:RequestBudget,private enabled=false,private fetcher:typeof fetch=fetch,
-    private confirm?: (link:string,c:AdapterCommand)=>Promise<{platformPostId:string;confirmedAt:string}|undefined>){}
+    private confirm?: (link:string,c:AdapterCommand)=>Promise<{platformPostId:string;confirmedAt:string}|undefined>,
+    private releaseDigests?:string[]){
+      if(releaseDigests&&(!Array.isArray(releaseDigests)||releaseDigests.some(d=>typeof d!=='string'||!/^[a-f0-9]{64}$/.test(d))))fail('BUFFER_RELEASE_CONFIG_INVALID',503);
+    }
   capabilities(){return {executionOwner:'provider' as const,schedule:this.enabled,cancel:this.enabled,live:this.enabled};}
   private binding(c:AdapterCommand){
     if(!this.token||!this.accountId)return fail('BUFFER_RELEASE_NOT_CONFIGURED',503);
@@ -60,6 +63,7 @@ export class BufferAdapter implements PublishingAdapter {
   }
   async submit(c:AdapterCommand,checkpoint:(id:string)=>Promise<void>):Promise<Receipt>{
     if(!this.enabled)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
+    if(this.releaseDigests&&!this.releaseDigests.includes(hash(c.plan)))return fail('BUFFER_MATERIAL_NOT_RELEASED',403);
     await this.validate(c);const b=this.binding(c),v=c.plan.variants[c.target.variant];
     const asset=v.asset===undefined?undefined:c.plan.assets[v.asset];
     const input={channelId:b.channelId,text:v.text,assets:asset?[{image:{url:asset.url}}]:[],

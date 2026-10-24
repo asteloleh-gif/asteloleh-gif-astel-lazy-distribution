@@ -1,4 +1,6 @@
 import { DistributionHub } from './service.js';
+import { AirtableEditorial } from './editorial.js';
+import { threadsConfirmer } from './threads-confirm.js';
 import { FileStore } from './store.js';
 import { OpenPostAdapter } from './openpost.js';
 import { OpenPostHttpPort } from './openpost-http.js';
@@ -30,8 +32,11 @@ export function configuredHub(){
     const bindings:BufferBinding[]=JSON.parse(process.env[`${prefix}_BINDINGS_JSON`]??'[]');
     if(bindings.some(b=>b.platform!==platform))fail('BUFFER_CROSS_ACCOUNT_BINDING',503);
     if(directory&&token&&account)adapters[`buffer-${platform}`]=new BufferAdapter(`buffer-${platform}`,token,account,bindings,
-      new FileBufferBudget(directory),process.env.LD_BUFFER_ENABLE_WRITES==='true');
+      new FileBufferBudget(directory),process.env.LD_BUFFER_ENABLE_WRITES==='true',fetch,
+      platform==='threads'?threadsConfirmer(JSON.parse(process.env.LD_THREADS_READ_BINDINGS_JSON??'[]')):undefined,
+      JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'));
   }
   const hub=directory&&binding?new DistributionHub(new FileStore(directory,binding),routes,JSON.parse(process.env.LD_MEDIA_HOSTS_JSON??'[]'),adapters):undefined;
+  if(hub&&process.env.LD_EDITORIAL_ENABLED==='true')hub.editorial=new AirtableEditorial(JSON.parse(process.env.LD_EDITORIAL_BINDINGS_JSON??'[]'));
   return {hub,credentials};
 }

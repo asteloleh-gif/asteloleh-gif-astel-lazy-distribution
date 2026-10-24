@@ -22,5 +22,5 @@ export class HubClient {
   metrics(projectId:string){return this.call('metrics',{projectId});}
 }
 // Profiles define permissions only; provisioning actual caller credentials is a separate action.
-export const kevinOperator=(projects:string[]):Principal=>({id:'kevin',role:'producer',projects,scopes:['submit','review','schedule','status','cancel','reconcile']});
+export const kevinOperator=(projects:string[]):Principal=>({id:'kevin',role:'producer',projects,scopes:['editorial','submit','review','schedule','status','cancel','reconcile']});
 export const olegOwner=(projects:string[]):Principal=>({id:'oleg',role:'owner',projects,scopes:['status','approve','pause']});

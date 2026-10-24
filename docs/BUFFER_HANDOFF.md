@@ -1,3 +1,5 @@
+> Historical snapshot. Current deployed fallback and pending editorial release: see EDITORIAL_RELEASE.md and KEVIN_HANDOFF.md. Older local-only statements below describe that earlier checkpoint.
+
 # Buffer candidate — local only
 
 Continues the existing review branch; parent 91f8f74e950e951af9dac1f30ccd966d14f7978e.

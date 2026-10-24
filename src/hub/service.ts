@@ -3,12 +3,18 @@ import type { Principal, Route, Plan, PlanInput, Delivery, Receipt, State, Scope
 import type { Store, Journal } from './store.js';
 import type { PublishingAdapter } from './openpost.js';
 export class DistributionHub {
+  editorial?:{sync(hub:DistributionHub,p:Principal,projectId:string):Promise<unknown>};
   constructor(readonly store:Store,readonly routes:Route[],readonly mediaHosts:string[],readonly adapters:Record<string,PublishingAdapter>,readonly now=()=>new Date().toISOString()){}
   async execute(p:Principal,action:string,args:any):Promise<unknown>{
     const scopes=actionScopes;
     if(!Object.hasOwn(scopes,action)) return fail('UNKNOWN_ACTION',404);
     if(!args||typeof args!=='object'||typeof args.projectId!=='string') return fail('PROJECT_REQUIRED',400);
     authorize(p,scopes[action],args.projectId);
+    if(action==='importeditorial'){
+      if(!this.editorial)return fail('EDITORIAL_NOT_CONFIGURED',503);
+      if(p.role!=='producer')return fail('EDITORIAL_PRODUCER_REQUIRED',403);
+      return this.editorial.sync(this,p,args.projectId);
+    }
     if(action==='capabilities') return {contractVersion:1,routes:this.routes.filter(r=>r.projectId===args.projectId).map(r=>({...r,capabilities:this.adapters[r.adapter]?.capabilities()??null})),aiCalls:0};
     if(action==='preview') return {input:validate(args.input,p,this.routes,this.mediaHosts),aiCalls:0,mutations:0};
     return this.store.transaction(async(j,save)=>{
