@@ -1,4 +1,4 @@
-import { YouTubeConnection,FAMILY_CHANNEL_ID } from './youtube-connection.js';
+import { YouTubeConnection,FAMILY_CHANNEL_ID,ASAP_TEAM_CHANNEL_ID } from './youtube-connection.js';
 import { DistributionHub } from './service.js';
 import { AirtableEditorial } from './editorial.js';
 import { threadsConfirmer } from './threads-confirm.js';
@@ -62,6 +62,11 @@ export function configuredHub(){
     let saved;try{saved=JSON.parse(process.env.LD_YOUTUBE_FAMILY_CONNECTION_JSON??'null');}catch{return fail('YOUTUBE_CONNECTION_REQUIRED',503);}
     if(!hub||saved?.version!==1||saved.credentials?.channelId!==FAMILY_CHANNEL_ID)return fail('YOUTUBE_FAMILY_BINDING_REQUIRED',503);
     hub.youtube=new YouTubeConnection(saved.credentials);
+  }
+  if(process.env.LD_YOUTUBE_ASAP_TEAM_ENABLED==='true'){
+    let saved;try{saved=JSON.parse(process.env.LD_YOUTUBE_ASAP_TEAM_CONNECTION_JSON??'null');}catch{return fail('YOUTUBE_CONNECTION_REQUIRED',503);}
+    if(!hub||saved?.version!==1||saved.credentials?.channelId!==ASAP_TEAM_CHANNEL_ID)return fail('YOUTUBE_ASAP_TEAM_BINDING_REQUIRED',503);
+    hub.youtubeAccounts['asap-team']=new YouTubeConnection(saved.credentials);
   }
   if(hub&&process.env.LD_EDITORIAL_ENABLED==='true')hub.editorial=new AirtableEditorial(JSON.parse(process.env.LD_EDITORIAL_BINDINGS_JSON??'[]'));
   return {hub,credentials};

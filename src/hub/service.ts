@@ -4,6 +4,7 @@ import type { Store, Journal } from './store.js';
 import type { PublishingAdapter } from './openpost.js';
 export class DistributionHub {
   youtube?:{account():Promise<unknown>;videos():Promise<{channelId:string;items:any[];count:number}>;analytics(startDate:string,endDate:string):Promise<unknown>};
+  youtubeAccounts:Record<string,NonNullable<DistributionHub["youtube"]>>={};
   editorial?:{sync(hub:DistributionHub,p:Principal,projectId:string):Promise<unknown>};
   constructor(readonly store:Store,readonly routes:Route[],readonly mediaHosts:string[],readonly adapters:Record<string,PublishingAdapter>,readonly now=()=>new Date().toISOString()){}
   async execute(p:Principal,action:string,args:any):Promise<unknown>{
@@ -13,10 +14,13 @@ export class DistributionHub {
     authorize(p,scopes[action],args.projectId);
     if(['youtubeaccount','youtubevideos','youtubeanalytics'].includes(action)){
       if(args.projectId!=='copilot')return fail('FORBIDDEN',403);
-      if(!this.youtube)return fail('YOUTUBE_NOT_CONNECTED',503);
-      if(action==='youtubeaccount')return this.youtube.account();
-      if(action==='youtubeanalytics')return this.youtube.analytics(args.startDate,args.endDate);
-      const data=await this.youtube.videos();return {channelId:data.channelId,count:data.count,items:data.items.map(v=>({videoId:v.contentDetails?.videoId,title:v.snippet?.title,publishedAt:v.contentDetails?.videoPublishedAt??v.snippet?.publishedAt,privacyStatus:v.status?.privacyStatus}))};
+      const key=args.accountKey??'family';
+      if(!['family','asap-team'].includes(key))return fail('YOUTUBE_ACCOUNT_DENIED',403);
+      const youtube=this.youtubeAccounts[key]??(key==='family'?this.youtube:undefined);
+      if(!youtube)return fail('YOUTUBE_NOT_CONNECTED',503);
+      if(action==='youtubeaccount')return youtube.account();
+      if(action==='youtubeanalytics')return youtube.analytics(args.startDate,args.endDate);
+      const data=await youtube.videos();return {channelId:data.channelId,count:data.count,items:data.items.map(v=>({videoId:v.contentDetails?.videoId,title:v.snippet?.title,publishedAt:v.contentDetails?.videoPublishedAt??v.snippet?.publishedAt,privacyStatus:v.status?.privacyStatus}))};
     }
     if(action==='importeditorial'){
       if(!this.editorial)return fail('EDITORIAL_NOT_CONFIGURED',503);

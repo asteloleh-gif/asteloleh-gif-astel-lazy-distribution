@@ -25,7 +25,7 @@ export function hubApi(hub:DistributionHub|undefined,credentials:Credential[]){
         if(body.jsonrpc!=='2.0')return json(400,{error:'INVALID_RPC'});
         if(body.method==='initialize')return json(200,{jsonrpc:'2.0',id:body.id,result:{protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'astel-distribution-hub',version:'1'}}});
         if(body.method==='notifications/initialized'){res.writeHead(202);res.end();return;}
-        if(body.method==='tools/list')return json(200,{jsonrpc:'2.0',id:body.id,result:{tools:actions.filter(a=>(!a.startsWith('youtube')||!!hub?.youtube)&&p.scopes.includes(actionScopes[a])&&(!['approve','pause','resume'].includes(a)||p.role==='owner')).map(mcpDescriptor)}});
+        if(body.method==='tools/list')return json(200,{jsonrpc:'2.0',id:body.id,result:{tools:actions.filter(a=>(!a.startsWith('youtube')||(!!hub?.youtube||Object.keys(hub.youtubeAccounts).length>0))&&p.scopes.includes(actionScopes[a])&&(!['approve','pause','resume'].includes(a)||p.role==='owner')).map(mcpDescriptor)}});
         if(body.method!=='tools/call')return json(200,{jsonrpc:'2.0',id:body.id,error:{code:-32601,message:'METHOD_NOT_FOUND'}});
         const name=body.params?.name;
         if(typeof name!=='string'||!name.startsWith('distribution_')||!actions.includes(name.slice(13)))return json(200,{jsonrpc:'2.0',id:body.id,error:{code:-32602,message:'UNKNOWN_TOOL'}});

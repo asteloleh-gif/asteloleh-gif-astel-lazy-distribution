@@ -1,3 +1,4 @@
+export const ASAP_TEAM_CHANNEL_ID='UCY_Gljo9NHXbXQv-vT_PWTA';
 import { fail } from './contract.js';
 export const FAMILY_CHANNEL_ID='UCMWFPgFfuNKRQqXzbCqGZhA';
 export const YOUTUBE_READ_SCOPES=['https://www.googleapis.com/auth/youtube.readonly','https://www.googleapis.com/auth/yt-analytics.readonly'];
