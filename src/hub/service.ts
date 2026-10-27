@@ -1,3 +1,4 @@
+import {assetIndices} from './instagram-format.js';
 import { authorize, fail, hash, validate, actionScopes } from './contract.js';
 import type { Principal, Route, Plan, PlanInput, Delivery, Receipt, State, Scope } from './contract.js';
 import type { Store, Journal } from './store.js';
@@ -101,7 +102,7 @@ export class DistributionHub {
           await a.validate(this.command(plan,d));
           // Revalidate expiry at dispatch; immutable approval binds original schedule and asset digest.
           const variant=plan.input.variants[d.target.variant];
-          if(variant.asset!==undefined&&Date.parse(plan.input.assets[variant.asset].availableUntil)<=Date.parse(this.now()))return fail('ASSET_EXPIRED');
+          if(assetIndices(variant).some(i=>Date.parse(plan.input.assets[i].availableUntil)<=Date.parse(this.now())))return fail('ASSET_EXPIRED');
           d.state='SCHEDULED';this.event(j,plan,d);await save();
           if(plan.input.mode==='simulation') {d.state='SIMULATED';this.event(j,plan,d);await save();continue;}
           d.state='DISPATCHING';d.attempts++;d.intentAt=this.now();this.event(j,plan,d);await save();

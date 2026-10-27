@@ -21,6 +21,7 @@ export class OpenPostHttpPort implements OpenPostPort {
     try{return JSON.parse(text);}catch{return fail('OPENPOST_RESPONSE_INVALID',502);}
   }
   async validate(c:AdapterCommand){
+    const variant=c.plan.variants[c.target.variant];if(variant.instagram||variant.assetIndices||c.plan.assets.some(a=>a.kind==='video'||a.userTags||a.altText!==undefined||a.thumbnailOffset!==undefined))fail('OPENPOST_EXTENDED_FORMAT_NOT_CERTIFIED',503);
     const b=this.binding(c);this.asset(c);
     const release=await this.api('/version');
     if(release.version!==OPENPOST_RELEASE.version||release.revision!==OPENPOST_RELEASE.revision)fail('OPENPOST_VERSION_MISMATCH',503);

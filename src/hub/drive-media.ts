@@ -11,7 +11,7 @@ function checked(raw:string){
  return u;
 }
 export type MediaProbe=(asset:Asset,scheduledAt:string)=>Promise<void>;
-export function driveMediaProbe(fetcher:typeof fetch=fetch,now=()=>Date.now()):MediaProbe{
+export function driveMediaProbe(fetcher:typeof fetch=fetch,now=()=>Date.now(),limits={image:16*1024*1024,video:512*1024*1024}):MediaProbe{
  return async(asset,scheduledAt)=>{
   if(!Number.isFinite(Date.parse(scheduledAt))||!Number.isFinite(Date.parse(asset.availableUntil))||Date.parse(asset.availableUntil)<=Math.max(now(),Date.parse(scheduledAt)))return fail('DRIVE_MEDIA_EXPIRY_REQUIRED',400);
   let u=checked(asset.url);const seen=new Set<string>();
@@ -22,8 +22,8 @@ export function driveMediaProbe(fetcher:typeof fetch=fetch,now=()=>Date.now()):M
     u=checked(next.href);continue;}
    if(!r.ok)return fail('DRIVE_MEDIA_UNAVAILABLE',502);
    const mime=(r.headers.get('content-type')??'').split(';')[0].trim().toLowerCase();
-   if(!(asset.kind==='reel'?mime==='video/mp4':['image/jpeg','image/png'].includes(mime)))return fail('DRIVE_MEDIA_TYPE_MISMATCH',400);
-   const raw=r.headers.get('content-length')??'';const size=Number(raw),max=asset.kind==='reel'?512*1024*1024:16*1024*1024;
+   if(!(asset.kind!=='image'?mime==='video/mp4':['image/jpeg','image/png'].includes(mime)))return fail('DRIVE_MEDIA_TYPE_MISMATCH',400);
+   const raw=r.headers.get('content-length')??'';const size=Number(raw),max=asset.kind!=='image'?limits.video:limits.image;
    // Operational resource caps, not a substitute for platform format requirements.
    if(!/^\d+$/.test(raw)||!Number.isSafeInteger(size)||size<1||size>max)return fail('DRIVE_MEDIA_SIZE_DENIED',400);
    return;

@@ -1,3 +1,5 @@
+import {instagramVariant,assetIndices} from './instagram-format.js';
+import type {InstagramOptions} from './instagram-format.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 export class HubError extends Error {
@@ -10,10 +12,11 @@ export type Principal = { delegatedApproval?: boolean; id: string; role: 'produc
 export type Credential = { token: string; principal: Principal };
 export type Route = { projectId: string; brandId: string; platform: 'threads'|'instagram'; accountKey: string;
   adapter: string; executionOwner: 'provider'; mode: 'simulation'|'live' };
-export type Asset = { url: string; kind: 'image'|'reel'; digest: string; revision: string; availableUntil: string };
+export type Asset = { url: string; kind: 'image'|'reel'|'video'; altText?:string; thumbnailOffset?:number; userTags?:{handle:string;x:number;y:number}[]; digest: string; revision: string; availableUntil: string };
 export type Target = { platform: 'threads'|'instagram'; accountKey: string; variant: string; scheduledAt: string; timezone: string };
+export type Variant={text:string;asset?:number;assetIndices?:number[];instagram?:InstagramOptions};
 export type PlanInput = { contractVersion: 1; projectId: string; brandId: string; contentId: string; revision: number;
-  source: { producer: string; reference: string }; variants: Record<string,{text: string; asset?: number}>;
+  source: { producer: string; reference: string }; variants: Record<string,Variant>;
   assets: Asset[]; destinations: Target[]; requestId: string; idempotencyKey: string; mode: 'simulation'|'live' };
 export type State = 'DRAFT'|'NEEDS_APPROVAL'|'APPROVED'|'SCHEDULED'|'DISPATCHING'|'PROVIDER_ACCEPTED'|'PUBLISHED'|'FAILED'|'AMBIGUOUS_HOLD'|'CANCEL_REQUESTED'|'CANCELLED'|'SIMULATED';
 export type Receipt = { providerStatus?:'scheduled'|'sending'|'sent'|'error'; state: 'PROVIDER_ACCEPTED'|'PUBLISHED'|'FAILED'|'CANCELLED'; providerId: string; providerJobId?: string; providerRevision?: number; cancellationEventId?: string;
@@ -59,10 +62,13 @@ export function validate(input: unknown, p: Principal, routes: Route[], mediaHos
   keys(x.source,['producer','reference']);str(x.source.producer);str(x.source.reference,2000);
   if(!Array.isArray(x.assets)||x.assets.length>10||!Array.isArray(x.destinations)||!x.destinations.length||x.destinations.length>10) fail('INVALID_TARGETS',400);
   if(!x.variants||typeof x.variants!=='object'||Array.isArray(x.variants)||Object.keys(x.variants).length>10) fail('INVALID_VARIANTS',400);
-  for(const v of Object.values(x.variants)) { keys(v,['text','asset']);str(v.text,10000);if(v.asset!==undefined&&(!Number.isInteger(v.asset)||!x.assets[v.asset])) fail('INVALID_ASSET',400); }
+  for(const v of Object.values(x.variants)) { keys(v,['text','asset','assetIndices','instagram']);if(v.instagram||v.assetIndices)instagramVariant(v,x.assets);else str(v.text,10000);if(v.asset!==undefined&&(!Number.isInteger(v.asset)||!x.assets[v.asset])) fail('INVALID_ASSET',400); }
   for(const a of x.assets) {
-    keys(a,['url','kind','digest','revision','availableUntil']);str(a.url,4096);str(a.revision);date(a.availableUntil);
-    if(!['image','reel'].includes(a.kind)||!/^sha256:[a-f0-9]{64}$/.test(a.digest)) fail('ASSET_IDENTITY_REQUIRED',400);
+    keys(a,['url','kind','digest','revision','availableUntil','altText','thumbnailOffset','userTags']);str(a.url,4096);str(a.revision);date(a.availableUntil);
+    if(!['image','reel','video'].includes(a.kind)||!/^sha256:[a-f0-9]{64}$/.test(a.digest)) fail('ASSET_IDENTITY_REQUIRED',400);
+    if(a.altText!==undefined&&(a.kind!=='image'||typeof a.altText!=='string'||a.altText.length>1000))fail('ASSET_METADATA_INVALID',400);
+    if(a.thumbnailOffset!==undefined&&(a.kind==='image'||!Number.isSafeInteger(a.thumbnailOffset)||a.thumbnailOffset<0||a.thumbnailOffset>900000))fail('ASSET_METADATA_INVALID',400);
+    if(a.userTags!==undefined){if(a.kind!=='image'||!Array.isArray(a.userTags)||a.userTags.length>20)fail('ASSET_METADATA_INVALID',400);for(const tag of a.userTags){keys(tag,['handle','x','y']);if(typeof tag.handle!=='string'||!/^[-a-zA-Z0-9_.]{1,30}$/.test(tag.handle)||![tag.x,tag.y].every(n=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1))fail('ASSET_METADATA_INVALID',400);}}
     let u:URL;try {u=new URL(a.url);}catch{return fail('INVALID_MEDIA_URL',400);}
     // No fetch/import of producer URLs occurs in this release. Only exact, operator-controlled origins.
     if(u.protocol!=='https:'||u.username||u.password||u.hash||u.port||isIP(u.hostname.replace(/[\[\]]/g,''))||!mediaHosts.includes(u.hostname)||/localhost|\.local$|\.internal$/.test(u.hostname)) fail('MEDIA_ORIGIN_DENIED',400);
@@ -74,9 +80,9 @@ export function validate(input: unknown, p: Principal, routes: Route[], mediaHos
     if(!routes.some(r=>r.projectId===x.projectId&&r.brandId===x.brandId&&r.platform===t.platform&&r.accountKey===t.accountKey&&r.mode===x.mode&&r.executionOwner==='provider')) fail('ROUTE_DENIED',403);
     const key=t.platform+':'+t.accountKey;if(targets.has(key)) fail('DUPLICATE_TARGET',400);targets.add(key);
     const v=x.variants[t.variant];if(!v) fail('VARIANT_MISSING',400);
-    if(t.platform==='threads'&&(Buffer.byteLength(v.text)>500||v.asset!==undefined)) fail('THREADS_TEXT_ONLY',400);
-    if(t.platform==='instagram'&&([...v.text].length>2200||v.asset===undefined)) fail('INSTAGRAM_ASSET_REQUIRED',400);
-    if(v.asset!==undefined&&Date.parse(x.assets[v.asset].availableUntil)<=Date.parse(t.scheduledAt)) fail('ASSET_EXPIRES_BEFORE_DELIVERY',400);
+    if(t.platform==='threads'&&(Buffer.byteLength(v.text)>500||v.asset!==undefined||v.assetIndices!==undefined||v.instagram!==undefined)) fail('THREADS_TEXT_ONLY',400);
+    if(t.platform==='instagram')instagramVariant(v,x.assets);
+    if(assetIndices(v).some(i=>Date.parse(x.assets[i].availableUntil)<=Date.parse(t.scheduledAt))) fail('ASSET_EXPIRES_BEFORE_DELIVERY',400);
   }
   return structuredClone(x);
 }

@@ -1,3 +1,4 @@
+import {instagramVariant,instagramPayload} from './instagram-format.js';
 import {open,readFile,rename,unlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {MediaProbe} from './drive-media.js';
@@ -37,10 +38,10 @@ export class BufferAdapter implements PublishingAdapter {
   constructor(readonly id:string,private token:string,private accountId:string,private bindings:BufferBinding[],
     private budget:RequestBudget,private enabled=false,private fetcher:typeof fetch=fetch,
     private confirm?: (link:string,c:AdapterCommand)=>Promise<{platformPostId:string;confirmedAt:string}|undefined>,
-    private releaseDigests?:string[], private delegatedApprovalActors:string[]=[],private options:{reels?:boolean;probe?:MediaProbe;verifyIdentity?:boolean;accountKeys?:string[]}={}){
+    private releaseDigests?:string[], private delegatedApprovalActors:string[]=[],private options:{reels?:boolean;probe?:MediaProbe;verifyIdentity?:boolean;accountKeys?:string[];instagramFormats?:boolean;firstComment?:boolean}={}){
       if(releaseDigests&&(!Array.isArray(releaseDigests)||releaseDigests.some(d=>typeof d!=='string'||!/^[a-f0-9]{64}$/.test(d))))fail('BUFFER_RELEASE_CONFIG_INVALID',503);
     }
-  capabilities(){return {executionOwner:'provider' as const,schedule:this.enabled,cancel:this.enabled,live:this.enabled};}
+  capabilities(){return {...(this.options.instagramFormats&&this.bindings.some(b=>b.platform==='instagram')?{instagramFormats:['image','carousel','reel','story'],notificationRequiresDevice:true,firstComment:this.options.firstComment===true}:{}),executionOwner:'provider' as const,schedule:this.enabled,cancel:this.enabled,live:this.enabled};}
   private scoped(c:AdapterCommand){return this.options.accountKeys===undefined||this.options.accountKeys.includes(c.target.accountKey);}
   private binding(c:AdapterCommand){
     if(!this.token||!this.accountId)return fail('BUFFER_RELEASE_NOT_CONFIGURED',503);
@@ -61,6 +62,19 @@ export class BufferAdapter implements PublishingAdapter {
     if(!v||!Number.isFinite(Date.parse(c.target.scheduledAt)))return fail('BUFFER_INVALID_MATERIAL',400);
     if(c.target.platform==='threads'&&v.asset!==undefined)return fail('BUFFER_THREADS_TEXT_ONLY',400);
     if(c.target.platform==='instagram'){
+      const v=c.plan.variants[c.target.variant];
+      const extended=!!(v.instagram||v.assetIndices||c.plan.assets.some(a=>a.kind==='video'||a.altText!==undefined||a.userTags!==undefined||a.thumbnailOffset!==undefined));
+      if(extended&&!this.options.instagramFormats)return fail('BUFFER_INSTAGRAM_FORMATS_NOT_ENABLED',503);
+      // Legacy command fixtures and existing image paths retain their previous no-network behavior.
+      if(this.options.instagramFormats){
+        const f=instagramVariant(v,c.plan.assets);
+        const newMedia=extended||f.type==='reel';
+        if(newMedia){if(!this.options.probe)return fail('BUFFER_REELS_PREFLIGHT_REQUIRED',503);for(const asset of f.selected)await this.options.probe(asset,c.target.scheduledAt);}
+        else if(this.scoped(c)&&this.options.probe)for(const asset of f.selected)await this.options.probe(asset,c.target.scheduledAt);
+        if(f.options?.firstComment&&!this.options.firstComment)return fail('BUFFER_FIRST_COMMENT_PLAN_REQUIRED',403);
+        if(newMedia||this.scoped(c))await this.verifyBinding(c,{publishing:f.publishing,type:f.type,location:!!f.options?.geolocation});
+        return;
+      }
       const asset=v.asset===undefined?undefined:c.plan.assets[v.asset];
       if(!asset||!['image','reel'].includes(asset.kind))return fail('BUFFER_IMAGE_ONLY',400);
       if(asset.kind==='reel'&&(!this.scoped(c)||!this.options.reels||!this.options.probe||!this.options.verifyIdentity))return fail('BUFFER_REELS_NOT_ENABLED',503);
@@ -68,11 +82,14 @@ export class BufferAdapter implements PublishingAdapter {
     }
     if(this.scoped(c)&&this.options.verifyIdentity)await this.verifyBinding(c);
   }
-  private async verifyBinding(c:AdapterCommand){
+  private async verifyBinding(c:AdapterCommand,format?:{publishing:string;type:string;location:boolean}){
     const b=this.binding(c);
-    const data=await this.query('query($input:ChannelInput!){account{id} channel(input:$input){id organizationId service serviceId isDisconnected isLocked isQueuePaused allowedActions}}',{input:{id:b.channelId}});
+    const data=await this.query('query($input:ChannelInput!){account{id} channel(input:$input){id organizationId service serviceId isDisconnected isLocked isQueuePaused allowedActions '+(format?'type scopes hasActiveMemberDevice':'')+'}}',{input:{id:b.channelId}});
     const channel=data.channel;
     if(data.account?.id!==this.accountId||channel?.id!==b.channelId||channel.service!==b.platform||!b.serviceId||channel.serviceId!==b.serviceId||!b.organizationId||channel.organizationId!==b.organizationId)return fail('BUFFER_REMOTE_IDENTITY_MISMATCH',403);
+    if(format?.publishing==='notification'&&channel.hasActiveMemberDevice!==true)return fail('BUFFER_NOTIFICATION_DEVICE_REQUIRED',403);
+    if(format?.type==='story'&&format.publishing==='automatic'&&channel.type!=='business')return fail('BUFFER_STORY_BUSINESS_REQUIRED',403);
+    if(format?.location&&!channel.scopes?.includes('instagram_basic'))return fail('BUFFER_LOCATION_FACEBOOK_CONNECTION_REQUIRED',403);
     if(channel.isDisconnected!==false||channel.isLocked!==false||channel.isQueuePaused!==false||!channel.allowedActions?.includes('scheduleUpdates'))return fail('BUFFER_CHANNEL_NOT_READY',503);
   }
   async submit(c:AdapterCommand,checkpoint:(id:string)=>Promise<void>):Promise<Receipt>{
@@ -82,15 +99,23 @@ export class BufferAdapter implements PublishingAdapter {
     const asset=v.asset===undefined?undefined:c.plan.assets[v.asset];
     const input={channelId:b.channelId,text:v.text,assets:asset?[asset.kind==='reel'?{video:{url:asset.url}}:{image:{url:asset.url}}]:[],
       ...(asset?.kind==='reel'?{metadata:{instagram:{type:'reel',shouldShareToFeed:true}}}:{}),
-      schedulingType:'automatic',mode:'customScheduled',dueAt:c.target.scheduledAt,needsApproval:false,aiAssisted:false};
-    const data=await this.query(`mutation($input:CreatePostInput!){createPost(input:$input){__typename ... on PostActionSuccess{post{${fields}}}}}`,{input},true);
+      schedulingType:'automatic',...(c.target.platform==='instagram'&&this.options.instagramFormats?instagramPayload(v,c.plan.assets):{}),mode:'customScheduled',dueAt:c.target.scheduledAt,needsApproval:false,aiAssisted:false};
+    const data=await this.query(`mutation($input:CreatePostInput!){createPost(input:$input){__typename ... on PostActionSuccess{post{${this.fields(c)}}}}}`,{input},true);
     const p=data.createPost?.post;
     if(data.createPost?.__typename!=='PostActionSuccess'||!p?.id)return fail('BUFFER_CREATE_UNCONFIRMED',502);
     // Persist remote identity before any readback. No automatic create retry, even on timeout.
     await checkpoint(p.id);this.check(p,c,p.id,true);return this.receipt(p,c);
   }
+  private fields(c:AdapterCommand){return fields+(this.options.instagramFormats&&c.target.platform==='instagram'?' schedulingType metadata{... on InstagramPostMetadata{type shouldShareToFeed}}':'');}
   private check(p:any,c:AdapterCommand,id:string,schedule=false){
-    if(p?.id!==id||p.channelId!==this.binding(c).channelId||p.text!==c.plan.variants[c.target.variant].text||
+    if(this.options.instagramFormats&&c.target.platform==='instagram'){
+      const v=c.plan.variants[c.target.variant],f=instagramVariant(v,c.plan.assets);
+      if(v.instagram||v.assetIndices||f.type==='reel'||f.selected.some(a=>a.kind==='video')){
+        const type=p?.metadata?.type,matched=type===f.type||f.type==='post'&&f.selected.length>1&&type==='carousel';
+        if(!matched||p.schedulingType!==f.publishing||f.type==='reel'&&p.metadata.shouldShareToFeed!==(f.options?.shareToFeed??true))fail('BUFFER_POST_FORMAT_MISMATCH',502);
+      }
+    }
+    if(p?.id!==id||p.channelId!==this.binding(c).channelId||(p.text??'')!==c.plan.variants[c.target.variant].text||
       (schedule&&Date.parse(p.dueAt)!==Date.parse(c.target.scheduledAt)))return fail('BUFFER_POST_IDENTITY_MISMATCH',502);
   }
   private async receipt(p:any,c:AdapterCommand):Promise<Receipt>{
@@ -106,11 +131,11 @@ export class BufferAdapter implements PublishingAdapter {
     }
     return {providerId:p.id,state:'PROVIDER_ACCEPTED',providerStatus:p.status,...(p.status==='sent'&&p.externalLink?{permalink:p.externalLink}:{})};
   }
-  private async post(id:string){return (await this.query(`query($input:PostInput!){post(input:$input){${fields}}}`,{input:{id}})).post;}
-  async status(id:string,c:AdapterCommand){const p=await this.post(id);this.check(p,c,id);return this.receipt(p,c);}
+  private async post(id:string,c:AdapterCommand){return (await this.query(`query($input:PostInput!){post(input:$input){${this.fields(c)}}}`,{input:{id}})).post;}
+  async status(id:string,c:AdapterCommand){const p=await this.post(id,c);this.check(p,c,id);return this.receipt(p,c);}
   async cancel(id:string,c:AdapterCommand):Promise<Receipt>{
     if(!this.enabled)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
-    const p=await this.post(id);this.check(p,c,id);
+    const p=await this.post(id,c);this.check(p,c,id);
     if(p.status!=='scheduled'||!p.allowedActions?.includes('deletePost'))return fail('BUFFER_CANCEL_NOT_SAFE',409);
     const data=await this.query('mutation($input:DeletePostInput!){deletePost(input:$input){__typename ... on DeletePostSuccess{id}}}',{input:{id}},true);
     if(data.deletePost?.__typename!=='DeletePostSuccess'||data.deletePost.id!==id)return fail('BUFFER_CANCEL_UNCONFIRMED',502);

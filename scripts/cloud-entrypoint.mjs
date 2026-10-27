@@ -1,3 +1,4 @@
+import {checkCloudInstagramIdentities} from './check-cloud-instagram-identities.mjs';
 import {checkCloudAsapIdentity} from './check-cloud-asap-identity.mjs';
 import {spawn} from 'node:child_process';
 import {writeFile,mkdir} from 'node:fs/promises';
@@ -8,7 +9,8 @@ export function tunnelConfig(command,tunnelId){
  return `config_version: 1\ncontrol_plane:\n  base_url: "https://api.openai.com"\n  tunnel_id: ${JSON.stringify(tunnelId)}\n  api_key: "env:LD_KEVIN_TUNNEL_RUNTIME_KEY"\nhealth:\n  listen_addr: "127.0.0.1:8091"\nadmin_ui:\n  open_browser: false\nlog:\n  level: error\n  format: json\nmcp:\n  commands:\n    - channel: main\n      command: ${JSON.stringify(command)}\n`;
 }
 async function run(){
- if(process.env.LD_ASAPTEAM_WORKFLOW_ENABLED==='true'){const identity=await checkCloudAsapIdentity();console.log('ASAPTEAM_CLOUD_IDENTITY '+JSON.stringify(identity));if(identity.status!=='PASS')throw Error('ASAPTEAM_CLOUD_IDENTITY_BLOCKED');}
+ if(process.env.LD_INSTAGRAM_FORMATS_ENABLED==='true'){const identity=await checkCloudInstagramIdentities();console.log('INSTAGRAM_FORMATS_CLOUD_IDENTITY '+JSON.stringify(identity));if(identity.status!=='PASS')throw Error('INSTAGRAM_FORMATS_CLOUD_IDENTITY_BLOCKED');}
+ else if(process.env.LD_ASAPTEAM_WORKFLOW_ENABLED==='true'){const identity=await checkCloudAsapIdentity();console.log('ASAPTEAM_CLOUD_IDENTITY '+JSON.stringify(identity));if(identity.status!=='PASS')throw Error('ASAPTEAM_CLOUD_IDENTITY_BLOCKED');}
  // Preserve the existing ordered provisioning and canary before opening Hub.
  for(const file of ['dist/hub/provision.js','dist/hub/connector-canary.js'])await new Promise((ok,bad)=>{const child=spawn(process.execPath,[file],{stdio:'inherit'});child.on('error',bad);child.on('exit',code=>code===0?ok():bad(Error('PREFLIGHT_FAILED')));});
  const hubEnv={...process.env};delete hubEnv.LD_KEVIN_TUNNEL_RUNTIME_KEY;

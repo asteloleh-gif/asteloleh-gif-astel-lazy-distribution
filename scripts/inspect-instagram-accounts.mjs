@@ -1,0 +1,5 @@
+import{readFile,writeFile}from'node:fs/promises';import{homedir}from'node:os';import{bufferAccounts}from'../dist/hub/buffer-bindings.js';
+const out={at:new Date().toISOString(),mutations:0,accounts:[]};
+for(const group of ['instagram','asapteam']){const g=bufferAccounts[group],token=(await readFile(homedir()+'/.config/astel-distribution/buffer-'+(group==='asapteam'?'subteam':group)+'.key','utf8')).trim();
+for(const c of g.channels){const query='query($input:ChannelInput!){channel(input:$input){id service serviceId type descriptor hasActiveMemberDevice scopes isDisconnected isLocked isQueuePaused allowedActions metadata{__typename}}}';const r=await fetch('https://api.buffer.com',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({query,variables:{input:{id:c.channelId}}})});const d=await r.json();if(!r.ok||d.errors)throw Error('CHANNEL_READ_FAILED');out.accounts.push({accountKey:c.accountKey,...d.data.channel});}}
+await writeFile('../../outputs/instagram-format-account-read-2026-10-27.json',JSON.stringify(out,null,2));console.log(JSON.stringify(out));
