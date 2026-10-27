@@ -23,10 +23,24 @@ export function requireSelfHostedOrigin(origin:string){
 export function configuredHub(){
   const credentials:Credential[]=JSON.parse(process.env.LD_CALLERS_JSON??'[]');
   const routes:Route[]=JSON.parse(process.env.LD_ROUTES_JSON??'[]');
+  const workflow=process.env.LD_ASAPTEAM_WORKFLOW_ENABLED==='true';
+  const humanActors=workflow?['oleg']:[];
+  if(workflow){
+    for(const id of ['oleg','astel-telegram-reader']){
+      const c=credentials.find(c=>c.principal.id===id);
+      if(!c||!c.principal.projects.includes('copilot')||(id==='oleg'&&(c.principal.role!=='owner'||!c.principal.scopes.includes('approve'))))fail('ASAPTEAM_OWNER_REQUIRED',503);
+      c!.principal.projects=[...new Set([...c!.principal.projects,'subteam'])];
+    }
+    for(const [brandId,accountKey] of [['asapleo.ai','asapleo.ai:instagram'],['wtffounder','wtffounder:instagram']])for(const mode of ['simulation','live'] as const){
+      const existing=routes.filter(r=>r.projectId==='subteam'&&r.accountKey===accountKey&&r.mode===mode);
+      if(existing.length>1||existing.some(r=>r.brandId!==brandId||r.platform!=='instagram'||r.adapter!=='buffer-subteam'||r.executionOwner!=='provider'))fail('ASAPTEAM_ROUTE_CONFLICT',503);
+      if(!existing.length)routes.push({projectId:'subteam',brandId,accountKey,platform:'instagram',adapter:'buffer-subteam',executionOwner:'provider',mode});
+    }
+  }
   if(process.env.LD_KEVIN_CLOUD_ENABLED==='true'){
     const token=process.env.LD_KEVIN_HUB_TOKEN;
     if(!token||token.length<40||credentials.some(c=>c.token===token||c.principal.id==='kevin-cloud'))fail('KEVIN_CLOUD_CREDENTIAL_REQUIRED',503);
-    credentials.push({token:token!,principal:{id:'kevin-cloud',role:'owner',delegatedApproval:true,projects:['copilot'],scopes:['submit','status','review','approve','schedule','cancel','reconcile','pause','editorial']}});
+    credentials.push({token:token!,principal:{id:'kevin-cloud',role:'owner',delegatedApproval:true,projects:workflow?['copilot','subteam']:['copilot'],scopes:workflow?['submit','status','review','schedule','cancel','reconcile','pause','editorial']:['submit','status','review','approve','schedule','cancel','reconcile','pause','editorial']}});
   }
 
   const directory=process.env.LD_STORAGE_DIR,binding=process.env.LD_STORAGE_BINDING;
@@ -52,7 +66,7 @@ export function configuredHub(){
     if(directory&&token&&account)adapters[`buffer-${platform}`]=new BufferAdapter(`buffer-${platform}`,token,account,bindings,
       new FileBufferBudget(directory),process.env.LD_BUFFER_ENABLE_WRITES==='true',fetch,
       platform==='threads'?threadsConfirmer(JSON.parse(process.env.LD_THREADS_READ_BINDINGS_JSON??'[]')):undefined,
-      JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'),process.env.LD_KEVIN_CLOUD_ENABLED==='true'?['kevin-cloud']:[],{reels,probe:mediaProbe,verifyIdentity:strict,accountKeys:mediaAccountKeys});
+      JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'),workflow?humanActors:process.env.LD_KEVIN_CLOUD_ENABLED==='true'?['kevin-cloud']:[],{reels,probe:mediaProbe,verifyIdentity:strict,accountKeys:mediaAccountKeys});
   }
   // Subteam stays read/validation-only unless its own explicit write release is enabled.
   // The global production write switch never enables this account.
@@ -69,9 +83,11 @@ export function configuredHub(){
       new Set(subteamBindings.map(b=>b.channelId)).size!==subteamBindings.length||
       new Set(subteamBindings.map(b=>b.accountKey)).size!==subteamBindings.length||
       routes.some(r=>r.adapter==='buffer-subteam'&&r.projectId!=='subteam'))fail('BUFFER_SUBTEAM_ISOLATION_REQUIRED',503);
-    adapters['buffer-subteam']=new BufferAdapter('buffer-subteam',subteamToken,subteamAccount,subteamBindings,new FileBufferBudget(directory),subteamWrites,fetch,undefined,JSON.parse(process.env.LD_BUFFER_ASAPTEAM_RELEASE_DIGESTS_JSON??'[]'),[],{reels,probe:mediaProbe,verifyIdentity:strict,accountKeys:mediaAccountKeys});
+    adapters['buffer-subteam']=new BufferAdapter('buffer-subteam',subteamToken,subteamAccount,subteamBindings,new FileBufferBudget(directory),subteamWrites,fetch,undefined,JSON.parse(process.env.LD_BUFFER_ASAPTEAM_RELEASE_DIGESTS_JSON??'[]'),humanActors,{reels,probe:mediaProbe,verifyIdentity:strict,accountKeys:mediaAccountKeys});
   }
-  const hub=directory&&binding?new DistributionHub(new FileStore(directory,binding),routes,JSON.parse(process.env.LD_MEDIA_HOSTS_JSON??'[]'),adapters):undefined;
+  const mediaHosts:string[]=JSON.parse(process.env.LD_MEDIA_HOSTS_JSON??'[]');
+  if(workflow)mediaHosts.push(...['drive.google.com','drive.usercontent.google.com'].filter(h=>!mediaHosts.includes(h)));
+  const hub=directory&&binding?new DistributionHub(new FileStore(directory,binding),routes,mediaHosts,adapters):undefined;
   if(process.env.LD_YOUTUBE_FAMILY_ENABLED==='true'){
     let saved;try{saved=JSON.parse(process.env.LD_YOUTUBE_FAMILY_CONNECTION_JSON??'null');}catch{return fail('YOUTUBE_CONNECTION_REQUIRED',503);}
     if(!hub||saved?.version!==1||saved.credentials?.channelId!==FAMILY_CHANNEL_ID)return fail('YOUTUBE_FAMILY_BINDING_REQUIRED',503);

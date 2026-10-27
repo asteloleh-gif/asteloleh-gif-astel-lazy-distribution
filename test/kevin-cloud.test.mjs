@@ -43,3 +43,30 @@ test('YouTube read tools are opt-in, SDK-valid and cannot cross projects or acce
  for(const args of [{projectId:'foreign'},{projectId:'copilot',upload:true}])assert.equal((await client.callTool({name:'distribution_youtubeaccount',arguments:args})).isError,true);
  assert.equal((await client.callTool({name:'distribution_youtubeanalytics',arguments:{projectId:'copilot',startDate:'bad',endDate:'2026-10-23'}})).isError,true);assert.equal(calls.length,1);
 });
+test('owner-required workflow grants both projects but never lets Kevin approve or change project through input',async t=>{
+ const calls=[];const server=createKevinCloudBridge(async(a,b)=>{calls.push([a,b]);return {ok:true};},{ownerApprovalRequired:true,youtubeRead:true});
+ const client=new Client({name:'owner-required',version:'1'},{capabilities:{}});const [a,b]=InMemoryTransport.createLinkedPair();await server.connect(a);await client.connect(b);t.after(()=>client.close());
+ const tools=(await client.listTools()).tools;assert.equal(tools.length,17);assert.ok(!tools.some(t=>t.name==='distribution_approve'));
+ assert.equal((await client.callTool({name:'distribution_inbox',arguments:{projectId:'subteam'}})).isError,undefined);
+ for(const [name,args] of [['approve',{projectId:'subteam',planId:'a'.repeat(64),digest:'b'.repeat(64)}],['submit',{projectId:'subteam',input:{projectId:'copilot'}}],['inbox',{projectId:'foreign'}]])assert.equal((await client.callTool({name:'distribution_'+name,arguments:args})).isError,true);
+ assert.equal(calls.length,1);
+});
+test('workflow server grants Telegram existing identities and preserves routes while denying Kevin approval at authorization boundary',async()=>{
+ const {authorize}=await import('../dist/hub/contract.js');const previous=process.env;
+ try{process.env={LD_ASAPTEAM_WORKFLOW_ENABLED:'true',LD_KEVIN_CLOUD_ENABLED:'true',LD_KEVIN_HUB_TOKEN:'fixture-'.repeat(8),LD_STORAGE_DIR:'/tmp/noio',LD_STORAGE_BINDING:'fixture',LD_CALLERS_JSON:JSON.stringify([{token:'owner-'.repeat(8),principal:{id:'oleg',role:'owner',projects:['copilot'],scopes:['status','approve']}},{token:'reader-'.repeat(8),principal:{id:'astel-telegram-reader',role:'producer',projects:['copilot'],scopes:['status']}}]),LD_ROUTES_JSON:JSON.stringify([{projectId:'copilot',brandId:'fixture',accountKey:'fixture:threads',platform:'threads',adapter:'fixture',mode:'simulation',executionOwner:'provider'}])};
+ const {hub,credentials}=configuredHub();assert.equal(hub.routes.length,5);assert.equal(hub.routes[0].projectId,'copilot');assert.deepEqual(hub.mediaHosts,['drive.google.com','drive.usercontent.google.com']);
+ const kevin=credentials.find(c=>c.principal.id==='kevin-cloud').principal;authorize(kevin,'submit','subteam');authorize(kevin,'schedule','subteam');assert.throws(()=>authorize(kevin,'approve','subteam'),e=>e.code==='FORBIDDEN');assert.throws(()=>authorize(kevin,'approve','copilot'),e=>e.code==='FORBIDDEN');
+ const owner=credentials.find(c=>c.principal.id==='oleg').principal;authorize(owner,'approve','subteam');assert.ok(!owner.scopes.includes('schedule'));
+ delete process.env.LD_CALLERS_JSON;assert.throws(()=>configuredHub(),e=>e.code==='ASAPTEAM_OWNER_REQUIRED');
+ }finally{process.env=previous;}
+});
+test('owner workflow cannot dispatch before separate human approval and repeats only one provider job after restart',async t=>{
+ const {mkdtemp,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');const {DistributionHub}=await import('../dist/hub/service.js'),{FileStore}=await import('../dist/hub/store.js'),{provision}=await import('../dist/hub/provision.js'),{BufferAdapter}=await import('../dist/hub/buffer.js');
+ const directory=await mkdtemp(join(tmpdir(),'owner-workflow-'));t.after(()=>rm(directory,{recursive:true,force:true}));await provision(directory,'fixture');let creates=0;
+ const input={contractVersion:1,projectId:'subteam',brandId:'fixture',contentId:'private-offline',revision:1,source:{producer:'kevin',reference:'offline'},variants:{v:{text:'Offline only',asset:0}},assets:[{kind:'image',url:'https://drive.google.com/uc?export=download&id=ABCDEFGHIJK123',digest:'sha256:'+'a'.repeat(64),revision:'1',availableUntil:'2035-01-02T00:00:00Z'}],destinations:[{platform:'instagram',accountKey:'fixture:instagram',variant:'v',scheduledAt:'2035-01-01T00:00:00Z',timezone:'America/Chicago'}],requestId:'r',idempotencyKey:'k',mode:'live'};
+ const actor={id:'kevin-cloud',role:'owner',delegatedApproval:true,projects:['subteam'],scopes:['submit','review','schedule','status']},owner={id:'oleg',role:'owner',projects:['subteam'],scopes:['approve']};
+ const adapter=new BufferAdapter('buffer-subteam','fixture','fixture',[{accountKey:'fixture:instagram',platform:'instagram',channelId:'channel'}],{reserve:async()=>{}},true,async()=>{creates++;return new Response(JSON.stringify({data:{createPost:{__typename:'PostActionSuccess',post:{id:'one-job',channelId:'channel',text:'Offline only',dueAt:input.destinations[0].scheduledAt,status:'scheduled'}}}}));},undefined,[],['oleg']);
+ const routes=[{projectId:'subteam',brandId:'fixture',accountKey:'fixture:instagram',platform:'instagram',adapter:'buffer-subteam',executionOwner:'provider',mode:'live'}];const make=()=>new DistributionHub(new FileStore(directory,'fixture'),routes,['drive.google.com'],{'buffer-subteam':adapter},()=> '2034-01-01T00:00:00Z');let hub=make();const plan=await hub.execute(actor,'submit',{projectId:'subteam',input}),args={projectId:'subteam',planId:plan.id};await hub.execute(actor,'review',args);
+ await assert.rejects(()=>hub.execute(actor,'approve',{...args,digest:plan.digest}),e=>e.code==='FORBIDDEN');await assert.rejects(()=>hub.execute(actor,'schedule',args),e=>e.code==='HUMAN_APPROVAL_REQUIRED');assert.equal(creates,0);
+ await hub.execute(owner,'approve',{...args,digest:plan.digest});assert.equal((await hub.execute(actor,'schedule',args)).state,'PROVIDER_ACCEPTED');hub=make();await hub.execute(actor,'schedule',args);assert.equal(creates,1);
+});
