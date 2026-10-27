@@ -1,0 +1,38 @@
+[
+  {
+    "projectId": "subteam",
+    "brandId": "asapleo.ai",
+    "accountKey": "asapleo.ai:instagram",
+    "platform": "instagram",
+    "adapter": "buffer-subteam",
+    "executionOwner": "provider",
+    "mode": "simulation"
+  },
+  {
+    "projectId": "subteam",
+    "brandId": "asapleo.ai",
+    "accountKey": "asapleo.ai:instagram",
+    "platform": "instagram",
+    "adapter": "buffer-subteam",
+    "executionOwner": "provider",
+    "mode": "live"
+  },
+  {
+    "projectId": "subteam",
+    "brandId": "wtffounder",
+    "accountKey": "wtffounder:instagram",
+    "platform": "instagram",
+    "adapter": "buffer-subteam",
+    "executionOwner": "provider",
+    "mode": "simulation"
+  },
+  {
+    "projectId": "subteam",
+    "brandId": "wtffounder",
+    "accountKey": "wtffounder:instagram",
+    "platform": "instagram",
+    "adapter": "buffer-subteam",
+    "executionOwner": "provider",
+    "mode": "live"
+  }
+]

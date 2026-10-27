@@ -1,3 +1,5 @@
+import {driveMediaProbe} from './drive-media.js';
+import {certifiedBindings} from './buffer-bindings.js';
 import { YouTubeConnection,FAMILY_CHANNEL_ID,ASAP_TEAM_CHANNEL_ID } from './youtube-connection.js';
 import { DistributionHub } from './service.js';
 import { AirtableEditorial } from './editorial.js';
@@ -32,30 +34,39 @@ export function configuredHub(){
   if(origin)requireSelfHostedOrigin(origin);
   const port=verified&&origin&&token&&workspace?new OpenPostHttpPort(origin,token,workspace,JSON.parse(process.env.LD_OPENPOST_ACCOUNTS_JSON??'[]'),JSON.parse(process.env.LD_OPENPOST_MEDIA_JSON??'[]')):undefined;
   const adapters:Record<string,PublishingAdapter>={openpost:new OpenPostAdapter(port,verified)};
+  const mediaEnabled=process.env.LD_BUFFER_DRIVE_MEDIA_ENABLED==='true';
+  const reels=process.env.LD_BUFFER_REELS_ENABLED==='true';
+  if(reels&&!mediaEnabled)fail('BUFFER_REELS_PREFLIGHT_REQUIRED',503);
+  const strict=mediaEnabled||process.env.LD_BUFFER_STRICT_BINDINGS==='true';
+  const mediaProbe=mediaEnabled?driveMediaProbe():undefined;
   // Tokens stay server-side; separate identities/budgets for the two existing Buffer accounts.
   for(const platform of ['instagram','threads'] as const){
     const prefix=`LD_BUFFER_${platform.toUpperCase()}`;
     const token=process.env[`${prefix}_TOKEN`],account=process.env[`${prefix}_ACCOUNT_ID`];
-    const bindings:BufferBinding[]=JSON.parse(process.env[`${prefix}_BINDINGS_JSON`]??'[]');
+    let bindings:BufferBinding[]=JSON.parse(process.env[`${prefix}_BINDINGS_JSON`]??'[]');
     if(bindings.some(b=>b.platform!==platform))fail('BUFFER_CROSS_ACCOUNT_BINDING',503);
+    if(strict&&token&&account)bindings=certifiedBindings(platform,account,bindings,routes);
     if(directory&&token&&account)adapters[`buffer-${platform}`]=new BufferAdapter(`buffer-${platform}`,token,account,bindings,
       new FileBufferBudget(directory),process.env.LD_BUFFER_ENABLE_WRITES==='true',fetch,
       platform==='threads'?threadsConfirmer(JSON.parse(process.env.LD_THREADS_READ_BINDINGS_JSON??'[]')):undefined,
-      JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'),process.env.LD_KEVIN_CLOUD_ENABLED==='true'?['kevin-cloud']:[]);
+      JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'),process.env.LD_KEVIN_CLOUD_ENABLED==='true'?['kevin-cloud']:[],{reels,probe:mediaProbe,verifyIdentity:strict});
   }
-  // Subteam is a separate read/validation-only connector until its own release.
+  // Subteam stays read/validation-only unless its own explicit write release is enabled.
   // The global production write switch never enables this account.
   const subteamToken=process.env.LD_BUFFER_ASAPTEAM_TOKEN;
   const subteamAccount=process.env.LD_BUFFER_ASAPTEAM_ACCOUNT_ID;
-  const subteamBindings:BufferBinding[]=JSON.parse(process.env.LD_BUFFER_ASAPTEAM_BINDINGS_JSON??'[]');
+  let subteamBindings:BufferBinding[]=JSON.parse(process.env.LD_BUFFER_ASAPTEAM_BINDINGS_JSON??'[]');
+  const subteamWrites=process.env.LD_BUFFER_ASAPTEAM_ENABLE_WRITES==='true';
+  if(subteamWrites&&(!subteamToken||!subteamAccount||!directory||!strict||!mediaEnabled))fail('BUFFER_ASAPTEAM_PREFLIGHT_REQUIRED',503);
   if(subteamToken&&subteamAccount&&directory){
+    if(strict||subteamWrites)subteamBindings=certifiedBindings('asapteam',subteamAccount,subteamBindings,routes);
     const existing=['INSTAGRAM','THREADS'].flatMap(p=>JSON.parse(process.env[`LD_BUFFER_${p}_BINDINGS_JSON`]??'[]') as BufferBinding[]);
     if(['INSTAGRAM','THREADS'].some(p=>process.env[`LD_BUFFER_${p}_ACCOUNT_ID`]===subteamAccount)||
       subteamBindings.some(b=>!['threads','instagram'].includes(b.platform)||!b.accountKey||!b.channelId||existing.some(e=>e.accountKey===b.accountKey||e.channelId===b.channelId))||
       new Set(subteamBindings.map(b=>b.channelId)).size!==subteamBindings.length||
       new Set(subteamBindings.map(b=>b.accountKey)).size!==subteamBindings.length||
       routes.some(r=>r.adapter==='buffer-subteam'&&r.projectId!=='subteam'))fail('BUFFER_SUBTEAM_ISOLATION_REQUIRED',503);
-    adapters['buffer-subteam']=new BufferAdapter('buffer-subteam',subteamToken,subteamAccount,subteamBindings,new FileBufferBudget(directory),false);
+    adapters['buffer-subteam']=new BufferAdapter('buffer-subteam',subteamToken,subteamAccount,subteamBindings,new FileBufferBudget(directory),subteamWrites,fetch,undefined,JSON.parse(process.env.LD_BUFFER_ASAPTEAM_RELEASE_DIGESTS_JSON??'[]'),[],{reels,probe:mediaProbe,verifyIdentity:strict});
   }
   const hub=directory&&binding?new DistributionHub(new FileStore(directory,binding),routes,JSON.parse(process.env.LD_MEDIA_HOSTS_JSON??'[]'),adapters):undefined;
   if(process.env.LD_YOUTUBE_FAMILY_ENABLED==='true'){

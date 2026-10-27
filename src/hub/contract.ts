@@ -16,7 +16,7 @@ export type PlanInput = { contractVersion: 1; projectId: string; brandId: string
   source: { producer: string; reference: string }; variants: Record<string,{text: string; asset?: number}>;
   assets: Asset[]; destinations: Target[]; requestId: string; idempotencyKey: string; mode: 'simulation'|'live' };
 export type State = 'DRAFT'|'NEEDS_APPROVAL'|'APPROVED'|'SCHEDULED'|'DISPATCHING'|'PROVIDER_ACCEPTED'|'PUBLISHED'|'FAILED'|'AMBIGUOUS_HOLD'|'CANCEL_REQUESTED'|'CANCELLED'|'SIMULATED';
-export type Receipt = { state: 'PROVIDER_ACCEPTED'|'PUBLISHED'|'FAILED'|'CANCELLED'; providerId: string; providerJobId?: string; providerRevision?: number; cancellationEventId?: string;
+export type Receipt = { providerStatus?:'scheduled'|'sending'|'sent'|'error'; state: 'PROVIDER_ACCEPTED'|'PUBLISHED'|'FAILED'|'CANCELLED'; providerId: string; providerJobId?: string; providerRevision?: number; cancellationEventId?: string;
   platformPostId?: string; permalink?: string; confirmedAt?: string };
 export type Delivery = { id: string; target: Target; adapter: string; executionOwner: 'provider'; state: State;
   attempts: number; intentAt?: string; receipt?: Receipt; error?: string };

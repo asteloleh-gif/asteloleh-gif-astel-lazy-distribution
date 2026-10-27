@@ -1,0 +1,9 @@
+{
+  "LD_BUFFER_ASAPTEAM_ACCOUNT_ID": "6add2e4173a6eff0da11c966",
+  "LD_BUFFER_ASAPTEAM_BINDINGS_JSON": "[{\"accountKey\":\"asapleo.ai:instagram\",\"platform\":\"instagram\",\"channelId\":\"6add2fd6778b240e2fb6336e\",\"serviceId\":\"17841460541410728\"},{\"accountKey\":\"wtffounder:instagram\",\"platform\":\"instagram\",\"channelId\":\"6add2e8c778b240e2fb61093\",\"serviceId\":\"17841420257167643\"}]",
+  "LD_BUFFER_DRIVE_MEDIA_ENABLED": "false",
+  "LD_BUFFER_STRICT_BINDINGS": "false",
+  "LD_BUFFER_REELS_ENABLED": "false",
+  "LD_BUFFER_ASAPTEAM_ENABLE_WRITES": "false",
+  "LD_BUFFER_ASAPTEAM_RELEASE_DIGESTS_JSON": "[]"
+}

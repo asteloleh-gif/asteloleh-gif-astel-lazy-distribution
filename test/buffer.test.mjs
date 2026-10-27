@@ -54,7 +54,7 @@ test('Instagram single image uses the approved URL; uncertified Reel blocked',as
  command.plan.variants.text.asset=0;command.plan.assets=[{kind:'image',url:'https://assets.example.test/p.jpg'}];
  let sent;const a=new BufferAdapter('buffer-instagram','fixture','account-ig',[{platform:'instagram',accountKey:'ua-instagram',channelId:'ch-ig'}],budget,true,async(u,o)=>{sent=JSON.parse(o.body);return response({createPost:{__typename:'PostActionSuccess',post:{...remote,channelId:'ch-ig'}}});});
  await a.submit(command,async()=>{});assert.deepEqual(sent.variables.input.assets,[{image:{url:'https://assets.example.test/p.jpg'}}]);
- command.plan.assets[0].kind='reel';await assert.rejects(()=>a.validate(command),e=>e.code==='BUFFER_IMAGE_ONLY');
+ command.plan.assets[0].kind='reel';await assert.rejects(()=>a.validate(command),e=>e.code==='BUFFER_REELS_NOT_ENABLED');
 });
 test('Buffer sent status never substitutes Buffer ID for platform identity',async()=>{
  const a=adapter(async()=>response({post:{...remote,status:'sent',externalLink:'https://www.threads.com/@astel.us/post/example'}}));

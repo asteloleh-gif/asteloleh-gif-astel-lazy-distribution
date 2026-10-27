@@ -17,3 +17,12 @@ test('Subteam rejects production account, channel, key and project collisions',(
 test('Saved token alone does not activate a Subteam adapter',()=>{
  const {hub}=configure({LD_BUFFER_ASAPTEAM_ACCOUNT_ID:''});assert.equal(hub.adapters['buffer-subteam'],undefined);
 });
+test('ASAP write release requires its own complete certified config; production switch alone is insufficient',async()=>{
+ assert.throws(()=>configure({LD_BUFFER_ASAPTEAM_ENABLE_WRITES:'true'}),e=>e.code==='BUFFER_ASAPTEAM_PREFLIGHT_REQUIRED');
+ assert.throws(()=>configure({LD_BUFFER_REELS_ENABLED:'true'}),e=>e.code==='BUFFER_REELS_PREFLIGHT_REQUIRED');
+ const {bufferAccounts}=await import('../dist/hub/buffer-bindings.js');const g=bufferAccounts.asapteam;
+ const {hub}=configure({LD_BUFFER_ASAPTEAM_ENABLE_WRITES:'true',LD_BUFFER_DRIVE_MEDIA_ENABLED:'true',LD_BUFFER_REELS_ENABLED:'true',LD_BUFFER_ASAPTEAM_ACCOUNT_ID:g.accountId,LD_BUFFER_ASAPTEAM_BINDINGS_JSON:JSON.stringify(g.channels)});
+ assert.equal(hub.adapters['buffer-subteam'].capabilities().live,true);
+ // Empty release digest list blocks execution even after switching connector writes on.
+ await assert.rejects(()=>hub.adapters['buffer-subteam'].submit({plan:{},target:{}},async()=>{}),e=>e.code==='BUFFER_MATERIAL_NOT_RELEASED');
+});
