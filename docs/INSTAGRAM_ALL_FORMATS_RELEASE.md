@@ -26,7 +26,7 @@ Hub: existing service only, exact candidate in external release manifest; LD_INS
 
 Telegram: candidate only; approval displays format, manual/automatic mode, ordered asset indexes, all additional settings, tag coordinates, cover offset and exact caption. No new server credential or flag. Kevin remains unable to approve on either project; only signed owner Telegram can approve exact version; Kevin then schedules.
 
-Offline: 148 Hub tests and 104 Telegram tests pass. All 5 accounts × image/carousel/Reel/Story-image/Story-video payloads tested; notification device denial and eligible explicit notification path; business-story requirements; paid/location blocks; ordering/tag/cover validation and digest; wrong format/mode acknowledgement checkpoint; prior replay/restart/cancellation/authorization regressions. Mocks are explicitly not live publishing proof.
+Offline: 149 Hub tests and 104 Telegram tests pass. All 5 accounts × image/carousel/Reel/Story-image/Story-video payloads tested; notification device denial and eligible explicit notification path; business-story requirements; paid/location blocks; ordering/tag/cover validation and digest; wrong format/mode acknowledgement checkpoint; prior replay/restart/cancellation/authorization regressions. Mocks are explicitly not live publishing proof.
 
 After deploy: pinned SHA + successful cloud five-account check, plugin capabilities both projects, metadata displayed by released Telegram asset, owner protection and existing autoreply health. Real publishing acceptance remains per-account/per-format on an exact approved material. Never extrapolate one account's success to all others.
 

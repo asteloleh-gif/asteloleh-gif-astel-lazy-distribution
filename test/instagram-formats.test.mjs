@@ -31,3 +31,5 @@ test('cloud format check reads five exact channels, reports device limitations, 
 test('wrong returned format or notification mode is checkpointed then held, never accepted as the requested automatic Reel',async()=>{
  const g=bufferAccounts.instagram,b=g.channels[0];for(const post of [{metadata:{type:'story',shouldShareToFeed:true}},{schedulingType:'notification'}]){const f=fixture(g,b,{text:'Exact',asset:0,instagram:{type:'reel'}},[video],{post});const ids=[];await assert.rejects(()=>f.adapter.submit(f.command,async id=>ids.push(id)),e=>e.code==='BUFFER_POST_FORMAT_MISMATCH');assert.deepEqual(ids,['job']);assert.equal(f.mutations(),1);}
 });
+
+test('explicit empty Instagram captions are preserved; null native option structures are rejected',()=>{assert.equal(instagramPayload({text:'',asset:0,instagram:{type:'post'}},[image]).metadata.instagram.type,'post');for(const instagram of [null,{type:'post',stickers:null},{type:'post',geolocation:null}])assert.throws(()=>instagramVariant({text:'',asset:0,instagram},[image]));});
