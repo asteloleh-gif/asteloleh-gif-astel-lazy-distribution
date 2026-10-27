@@ -5,5 +5,6 @@
   "LD_BUFFER_STRICT_BINDINGS": "false",
   "LD_BUFFER_REELS_ENABLED": "false",
   "LD_BUFFER_ASAPTEAM_ENABLE_WRITES": "false",
-  "LD_BUFFER_ASAPTEAM_RELEASE_DIGESTS_JSON": "[]"
+  "LD_BUFFER_ASAPTEAM_RELEASE_DIGESTS_JSON": "[]",
+  "LD_BUFFER_MEDIA_ACCOUNT_KEYS_JSON": "[\"asapleo.ai:instagram\",\"wtffounder:instagram\"]"
 }

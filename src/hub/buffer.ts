@@ -37,10 +37,11 @@ export class BufferAdapter implements PublishingAdapter {
   constructor(readonly id:string,private token:string,private accountId:string,private bindings:BufferBinding[],
     private budget:RequestBudget,private enabled=false,private fetcher:typeof fetch=fetch,
     private confirm?: (link:string,c:AdapterCommand)=>Promise<{platformPostId:string;confirmedAt:string}|undefined>,
-    private releaseDigests?:string[], private delegatedApprovalActors:string[]=[],private options:{reels?:boolean;probe?:MediaProbe;verifyIdentity?:boolean}={}){
+    private releaseDigests?:string[], private delegatedApprovalActors:string[]=[],private options:{reels?:boolean;probe?:MediaProbe;verifyIdentity?:boolean;accountKeys?:string[]}={}){
       if(releaseDigests&&(!Array.isArray(releaseDigests)||releaseDigests.some(d=>typeof d!=='string'||!/^[a-f0-9]{64}$/.test(d))))fail('BUFFER_RELEASE_CONFIG_INVALID',503);
     }
   capabilities(){return {executionOwner:'provider' as const,schedule:this.enabled,cancel:this.enabled,live:this.enabled};}
+  private scoped(c:AdapterCommand){return this.options.accountKeys===undefined||this.options.accountKeys.includes(c.target.accountKey);}
   private binding(c:AdapterCommand){
     if(!this.token||!this.accountId)return fail('BUFFER_RELEASE_NOT_CONFIGURED',503);
     const matches=this.bindings.filter(b=>b.accountKey===c.target.accountKey&&b.platform===c.target.platform);
@@ -62,10 +63,10 @@ export class BufferAdapter implements PublishingAdapter {
     if(c.target.platform==='instagram'){
       const asset=v.asset===undefined?undefined:c.plan.assets[v.asset];
       if(!asset||!['image','reel'].includes(asset.kind))return fail('BUFFER_IMAGE_ONLY',400);
-      if(asset.kind==='reel'&&(!this.options.reels||!this.options.probe||!this.options.verifyIdentity))return fail('BUFFER_REELS_NOT_ENABLED',503);
-      if(this.options.probe)await this.options.probe(asset,c.target.scheduledAt);
+      if(asset.kind==='reel'&&(!this.scoped(c)||!this.options.reels||!this.options.probe||!this.options.verifyIdentity))return fail('BUFFER_REELS_NOT_ENABLED',503);
+      if(this.scoped(c)&&this.options.probe)await this.options.probe(asset,c.target.scheduledAt);
     }
-    if(this.options.verifyIdentity)await this.verifyBinding(c);
+    if(this.scoped(c)&&this.options.verifyIdentity)await this.verifyBinding(c);
   }
   private async verifyBinding(c:AdapterCommand){
     const b=this.binding(c);

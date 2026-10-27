@@ -1,6 +1,6 @@
 # Instagram Reels + certified Buffer bindings — LOCAL_TESTED
 
-This candidate extends the existing Hub on review/unified-distribution-hub-20261024 from 467d7f8. No new scheduler, infrastructure, credentials or account grants. Nothing in this candidate is pushed or deployed. Existing production queues and content are untouched.
+This candidate extends the existing Hub on review/unified-distribution-hub-20261024 from 467d7f8 (compatibility follow-up supersedes unreleased f00c6db). No new scheduler, infrastructure, credentials or account grants. Nothing in this candidate is pushed or deployed. Existing production queues and content are untouched.
 
 ## Behavior
 
@@ -20,7 +20,7 @@ This candidate extends the existing Hub on review/unified-distribution-hub-20261
 - HEAD only, cookies omitted, no Authorization, no media-body read, no disk upload/cache. Every redirect is checked, maximum four requests, loop detection, ten-second request timeout. HTTP error/login/HTML/wrong MIME/missing or invalid Content-Length fail closed.
 - Operational size caps: 16 MiB JPEG/PNG images, 512 MiB MP4 videos. These are Hub guardrails, NOT a claim about Buffer/platform published limits. Codec/duration/aspect ratio are not transcoded or certified by HEAD. Buffer/platform may reject an unsupported file.
 - availableUntil must be valid and later than dispatch/current time and scheduled delivery. It is a producer attestation, not a guarantee inferred from HEAD. HEAD does not independently recompute the declared sha256 digest or ensure the file will remain public/unmodified until posting. Do not silently grant Drive public access, replace a mutable file or invent a durable expiry.
-- Reels are gated off by default. LD_BUFFER_REELS_ENABLED=true requires LD_BUFFER_DRIVE_MEDIA_ENABLED=true; strict identity verification is automatically enabled with media checks. With all new flags absent, existing image/Threads behavior remains compatible.
+- Reels are gated off by default. LD_BUFFER_REELS_ENABLED=true requires LD_BUFFER_DRIVE_MEDIA_ENABLED=true; strict identity verification is automatically enabled with media checks. All three flags are now scoped by mandatory LD_BUFFER_MEDIA_ACCOUNT_KEYS_JSON. The release template selects ONLY asapleo.ai:instagram and wtffounder:instagram. An empty scope with enabled gates is a configuration error. Unselected Copilot Instagram images and Threads retain their previous validation and perform no new media/identity requests. Copilot Reels remain disabled unless that account is separately selected. With all new flags absent, existing image/Threads behavior remains compatible.
 
 ## Configuration templates (no secrets)
 
@@ -28,11 +28,11 @@ This candidate extends the existing Hub on review/unified-distribution-hub-20261
 - config/asapteam-routes.example.json: ONLY the four new project subteam routes (two accounts × simulation/live). Merge with existing LD_ROUTES_JSON after reviewing the exact diff; do not replace existing routes.
 - config/reels-release.example.json: serialized non-secret binding variables and false/default-safe switches. No API token value or caller key.
 
-New variables: LD_BUFFER_DRIVE_MEDIA_ENABLED, LD_BUFFER_STRICT_BINDINGS, LD_BUFFER_REELS_ENABLED, LD_BUFFER_ASAPTEAM_ENABLE_WRITES, LD_BUFFER_ASAPTEAM_RELEASE_DIGESTS_JSON. Existing ASAP variables are LD_BUFFER_ASAPTEAM_TOKEN, LD_BUFFER_ASAPTEAM_ACCOUNT_ID, LD_BUFFER_ASAPTEAM_BINDINGS_JSON. Only the first is secret. Never paste it into this document, Airtable or chat.
+New variables: LD_BUFFER_MEDIA_ACCOUNT_KEYS_JSON, LD_BUFFER_DRIVE_MEDIA_ENABLED, LD_BUFFER_STRICT_BINDINGS, LD_BUFFER_REELS_ENABLED, LD_BUFFER_ASAPTEAM_ENABLE_WRITES, LD_BUFFER_ASAPTEAM_RELEASE_DIGESTS_JSON. Existing ASAP variables are LD_BUFFER_ASAPTEAM_TOKEN, LD_BUFFER_ASAPTEAM_ACCOUNT_ID, LD_BUFFER_ASAPTEAM_BINDINGS_JSON. Only the first is secret. Never paste it into this document, Airtable or chat.
 
 ## Validation
 
-Run npm test (build + complete offline suite). 110 passed, zero failed. New coverage includes Reel/image request mapping, live-identity mismatches, media rejection and redirects, isolated account/route registry, independent write gates, a real temporary durable journal with repeat/ restart/lost-ack handling, checkpoint-before-mismatch, and no false PUBLISHED state.
+Run npm test (build + complete offline suite). 115 passed, zero failed. New coverage includes Reel/image request mapping, live-identity mismatches, media rejection and redirects, isolated account/route registry, independent write gates, a real temporary durable journal with repeat/ restart/lost-ack handling, checkpoint-before-mismatch, and no false PUBLISHED state.
 
 Real read-only checks are separate from mocks:
 
@@ -53,7 +53,7 @@ Target ONLY existing Railway Hub:
 
 Proposed first release is read/review-only for ASAP: verify existing protected LD_BUFFER_ASAPTEAM_TOKEN against account 6add2e4173a6eff0da11c966 inside the cloud without exporting it, add the non-secret account/bindings, merge the four ASAP routes, preserve all existing routes/callers/keys/queues/storage. If the existing secret does not match, stop; transferring an existing correct key into persistent cloud storage requires explicit approval. No new key generation is proposed.
 
-Enable LD_BUFFER_DRIVE_MEDIA_ENABLED, LD_BUFFER_STRICT_BINDINGS and LD_BUFFER_REELS_ENABLED only after reviewing impacts on ALL existing Instagram routes (their media must then be direct public Drive JPEG/PNG or MP4). Keep LD_BUFFER_ASAPTEAM_ENABLE_WRITES=false and its release digest allowlist empty for this first release. Add the two exact Drive hosts to the existing media-host allowlist by merging, not replacing. Review image-source migration before enabling these flags; existing scheduled Buffer jobs do not get recreated or edited.
+Set LD_BUFFER_MEDIA_ACCOUNT_KEYS_JSON to exactly ["asapleo.ai:instagram","wtffounder:instagram"]. Enable LD_BUFFER_DRIVE_MEDIA_ENABLED, LD_BUFFER_STRICT_BINDINGS and LD_BUFFER_REELS_ENABLED only for that scope. Do NOT add the three Copilot accounts to the scope in this release: their live Buffer source samples include Instagram CDN and S3, which a blanket Drive filter would reject. The scoped candidate preserves their old validation. An empty pending queue is not used as compatibility proof. Keep LD_BUFFER_ASAPTEAM_ENABLE_WRITES=false and its release digest allowlist empty for this first release. Add the two exact Drive hosts to the existing media-host allowlist by merging, not replacing. Review a separate image-source migration before opting any Copilot account into the new scope; existing scheduled Buffer jobs do not get recreated or edited.
 
 This does NOT complete autonomous ASAP publishing. Subsequent execution needs: an explicitly scoped owner/producer for project subteam (current Kevin bridge and principal accept only copilot); exact approved material digest/content/media/time; separately approved ASAP write switch; independent Instagram platform-ID readback if VERIFIED_PUBLISHED is required. No such grant or public test is included in this local-stage permission. Fresh Kevin schema and signed-owner Telegram acceptance remain separate known blockers.
 
@@ -64,3 +64,15 @@ Cloud storage: existing /data volume and request budget only. No video on Railwa
 Acceptance after explicit release: verify pinned deployment SHA; cloud-side identity reads for all eight; server-side HEAD for the selected already-approved Drive asset; capabilities/authorization for the chosen project; read existing provider jobs/IDs without recreation; verify old Copilot queues/autoreplies and negative cross-project requests. Do not label local HEAD or Buffer UI access as a cloud end-to-end publication.
 
 Stop: disable only new ASAP writes (already false initially), preserve provider queues. Rollback Hub code to deployed 467d7f85e7237a7325ed15f20cf65d88ac4567eb and remove/disable only new flags, restoring the preserved original route/caller/media-host configuration. Keep /data and provider receipts. Rollback does not cancel Buffer jobs; any cancellation needs exact provider confirmation. An old runtime may lack ASAP cancel capability, so retain provider IDs and use the provider's own approved cancel flow if required.
+
+## Independent compatibility follow-up
+
+Real read-only Copilot source inventory is in outputs/copilot-media-compatibility-2026-10-27.json outside this checkout. Source samples: astel.us — one Instagram CDN MP4; astel.u — two S3 JPEGs and two Instagram CDN MP4s; leoakastel — two Instagram CDN MP4s. These are historical Buffer records, not proof they were submitted by Hub or that a future approved source will match. No ASAP queue or Startup Orchestrator post was read by this follow-up script.
+
+The old f00c6db blanket media gate would reject these non-Drive sources. The new explicit scope prevents that regression: both actual S3 image samples pass legacy adapter validation, all three Copilot accounts' image paths and three Threads are covered by zero-network regression tests, and unselected Copilot Reels stay blocked exactly as before. The new package does not certify future Copilot Reels or media durability. Reproduce with node scripts/verify-copilot-media-compatibility.mjs EVIDENCE_PATH after npm run build.
+
+Cloud secret identity: current production metadata shows LD_BUFFER_ASAPTEAM_TOKEN but no account/bindings, and no read-only account-check API is exposed. Railway tools expose names without secret values; no existing remote-exec path was available here. Thus the token owner is NOT VERIFIED, not invalid. No token value, length or hash was exported.
+
+Minimal after-approval check: run the dependency-free scripts/check-cloud-asap-identity.mjs body once through an already authorized console/SSH inside the existing Hub container, using its own process.env.LD_BUFFER_ASAPTEAM_TOKEN. It needs no local token, no new service and no public endpoint. If the script is not deployed, paste its non-secret source into a one-shot node --input-type=module stdin command and explicitly call checkCloudAsapIdentity; do not export process.env or print request/response bodies. Expected account 6add2e4173a6eff0da11c966, organization 6add2e4173a6eff0da11c968 and two certified channels. Output only bounded status/checks/public IDs. This run requires the proposed explicit approval; no cloud command has been executed. A missing/denied console is a blocker, not permission to export the secret.
+
+Independent confirmation clarification: an authorized cloud Instagram page showing the exact owner/permalink may independently establish publication fact; absence from vidIQ/Windsor does not automatically require new OAuth. A permanent API platform-ID confirmer remains a separate stage and was not built here.
