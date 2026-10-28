@@ -14,9 +14,9 @@ Environment: local isolated checkout; Node v24.22.1. After explicit approval, in
 
 ## Existing Hub regression subset
 
-Full npm test now runs the real TypeScript compiler successfully. Total: 168 tests, 164 passed, 4 failed. The Radar bridge opt-in SDK test passed, including exclusion of worker/recovery/send tools.
+Full npm test runs the real TypeScript compiler successfully. Final total: **168/168 passed**. Focused Radar + Hub route + Kevin SDK tests: **28/28 passed**. The SDK test confirms exclusion of worker/recovery/send tools from Kevin discovery.
 
-The four failures are existing loopback HTTP/socket errors: three in control-surfaces.test.mjs and one in restart-acceptance.test.mjs. All four were reproduced with the unmodified baseline server (control-surfaces in the first session, restart acceptance after dependency installation). This does not establish the root cause or constitute a clean regression pass; release remains blocked pending resolution or verification in a suitable test environment.
+The first complete run had four existing loopback socket failures, reproduced with the baseline server. Cause isolated to test fixtures replacing the entire environment and removing managed-runtime network settings. Test-only fix preserves an explicit allowlist of runtime network variables while discarding application flags/credentials; the child fixture receives the same filtered environment. Production networking code is unchanged. All previously failing tests and the complete suite then passed.
 
 No Chrome/Chromium executable is available in this workspace. Installing playwright-core does not install a browser. No login/session permission has been requested or exercised yet.
 

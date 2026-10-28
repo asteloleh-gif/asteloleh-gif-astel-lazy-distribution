@@ -1,10 +1,11 @@
+import {isolatedTestEnvironment} from './test-environment.mjs';
 // Disposable local test fixture, not a production runtime configuration.
 import {createAppServer} from '../../dist/server.js';
 import {DistributionHub} from '../../dist/hub/service.js';
 import {FileStore} from '../../dist/hub/store.js';
 import {OpenPostAdapter} from '../../dist/hub/openpost.js';
 import {OpenPostHttpPort} from '../../dist/hub/openpost-http.js';
-process.env={};
+process.env=isolatedTestEnvironment();
 process.on('message',({directory,providerOrigin})=>{
  if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(providerOrigin))throw Error('LOCAL_FIXTURE_ONLY');
  const transport=(url,opts)=>{const u=new URL(url);if(u.origin!=='https://fixture.example')throw Error('EXTERNAL_NETWORK_FORBIDDEN');return fetch(providerOrigin+u.pathname+u.search,opts);};

@@ -1,3 +1,4 @@
+import {isolatedTestEnvironment} from './fixtures/test-environment.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
@@ -7,7 +8,7 @@ import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {emptyJournal} from '../dist/hub/store.js';
-process.env={NODE_TEST_CONTEXT:process.env.NODE_TEST_CONTEXT??''};
+process.env=isolatedTestEnvironment();
 test('isolated HTTP scenario: process restart retains delegated queue; replay does not duplicate; cancel reaches backend and survives second restart',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'ld-process-acceptance-'));t.after(()=>rm(dir,{recursive:true,force:true}));
  await writeFile(join(dir,'hub-storage-manifest.json'),JSON.stringify({version:1,binding:'restart-fixture',durable:true}));await writeFile(join(dir,'hub-journal.json'),JSON.stringify(emptyJournal('restart-fixture')));
@@ -26,7 +27,7 @@ test('isolated HTTP scenario: process restart retains delegated queue; replay do
   res.writeHead(404);res.end('{}');
  }).listen(0,'127.0.0.1');await once(backend,'listening');t.after(()=>backend.close());
  const children=[];t.after(()=>children.forEach(c=>c.kill('SIGKILL')));
- const start=async()=>{const child=fork(new URL('./fixtures/hub-server.mjs',import.meta.url),[],{env:{},stdio:['ignore','ignore','pipe','ipc']});children.push(child);child.send({directory:dir,providerOrigin:'http://127.0.0.1:'+backend.address().port});const [{port}]=await once(child,'message');return {child,port};};
+ const start=async()=>{const child=fork(new URL('./fixtures/hub-server.mjs',import.meta.url),[],{env:{...process.env},stdio:['ignore','ignore','pipe','ipc']});children.push(child);child.send({directory:dir,providerOrigin:'http://127.0.0.1:'+backend.address().port});const [{port}]=await once(child,'message');return {child,port};};
  const stop=async c=>{const exited=once(c,'exit');c.kill('SIGTERM');await exited;};
  let server=await start();
  const call=async(action,args,owner=false)=>{const response=await fetch(`http://127.0.0.1:${server.port}/api/distribution/${action}`,{method:'POST',headers:{Authorization:'Bearer '+(owner?'owner-fixture-':'producer-fixture-').repeat(3),'Content-Type':'application/json'},body:JSON.stringify({projectId:'copilot',...args})});const body=await response.json();assert.equal(response.status,200,JSON.stringify(body));return body;};
