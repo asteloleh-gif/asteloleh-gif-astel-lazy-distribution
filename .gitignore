@@ -3,3 +3,9 @@ dist/
 .env
 .env.*
 !.env.example
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+.radar/
+browser-profiles/

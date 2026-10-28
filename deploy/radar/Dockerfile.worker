@@ -1,0 +1,15 @@
+# Proposal only: image/package installation and cloud deployment need owner approval.
+# Pin verified image digest before production release; this tag is not yet certified.
+FROM mcr.microsoft.com/playwright:v1.64.1-noble
+USER root
+RUN npm install --prefix /opt/radar --ignore-scripts --no-audit --no-fund playwright-core@1.64.1
+WORKDIR /opt/radar/app
+COPY scripts/radar ./scripts/radar
+RUN mkdir -p /home/pwuser/radar-profiles && chown pwuser:pwuser /home/pwuser/radar-profiles && chmod 700 /home/pwuser/radar-profiles
+USER pwuser
+ENV RADAR_PLAYWRIGHT_MODULE=/opt/radar/node_modules/playwright-core/index.mjs
+ENV RADAR_PROFILE_ROOT=/home/pwuser/radar-profiles
+ENV RADAR_BROWSER_CHANNEL=chromium
+# First login requires a separately approved visible desktop. Never transfer cookies.
+# No --no-sandbox flag. Host user namespaces/seccomp must support Chromium sandbox.
+CMD ["node","scripts/radar/daemon.mjs"]

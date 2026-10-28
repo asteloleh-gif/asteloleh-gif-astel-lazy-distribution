@@ -1,3 +1,4 @@
+import {isolatedTestEnvironment} from './fixtures/test-environment.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {once} from 'node:events';
@@ -5,7 +6,7 @@ import {DistributionHub} from '../dist/hub/service.js';
 import {emptyJournal} from '../dist/hub/store.js';
 import {HubClient,kevinOperator,olegOwner} from '../dist/hub/client.js';
 import {createAppServer} from '../dist/server.js';
-process.env={NODE_TEST_CONTEXT:process.env.NODE_TEST_CONTEXT??''};
+process.env=isolatedTestEnvironment();
 const keyK='fixture-kevin-'.repeat(4),keyO='fixture-oleg-'.repeat(4);
 async function fixture(t){
  const journal=emptyJournal('control-test');const store={async transaction(fn){return fn(journal,async()=>{});}};
