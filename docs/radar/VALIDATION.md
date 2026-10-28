@@ -30,3 +30,9 @@ No Chrome/Chromium executable is available in this workspace. Installing playwri
 - Actual existing Kevin connector discovery after deployment.
 
 The source is a reviewable MVP candidate, not an operational or fully tested integration.
+
+## Approved Chromium installation attempt — 2026-10-28
+
+The owner approved installation of the official browser matching playwright-core@1.64.1. The package manifest specifies Chrome for Testing 156.0.8078.4 / Chromium revision 1248. The standard Playwright installer failed: the official CDN returned HTTP 200 with a 195-byte text/html “Site Unavailable” response instead of a ZIP archive. No browser was installed or launched. No alternate mirror, proxy, sandbox disabling, login, or social session was used.
+
+Desktop Commander device discovery found no connected Mac; the only registered device was offline. Therefore neither this workspace nor the connected-device route currently provides a verified browser test environment. The next gate is an accessible approved browser environment, followed by a local no-login smoke test; manual social login/session persistence still needs separate approval.
