@@ -3,6 +3,14 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js';import {InMemor
 import {createKevinCloudBridge,cloudHubCall,cloudActions} from '../scripts/kevin-cloud-bridge.mjs';
 import {tunnelConfig} from '../scripts/cloud-entrypoint.mjs';
 import {configuredHub} from '../dist/hub/runtime.js';
+test('Radar is opt-in on the existing bridge and exposes no worker, recovery or send tool',async t=>{
+ const calls=[];const server=createKevinCloudBridge(async()=>{throw Error('DISTRIBUTION_NOT_EXPECTED');},{radarCall:async(action,args)=>{calls.push([action,args]);return {mode:'READ_AND_LOCAL_DRAFTS'};}});
+ const client=new Client({name:'radar-fixture',version:'1'},{capabilities:{}});const [a,b]=InMemoryTransport.createLinkedPair();await server.connect(a);await client.connect(b);t.after(()=>client.close());
+ const tools=(await client.listTools()).tools;assert.equal(tools.filter(t=>t.name.startsWith('radar_')).length,7);
+ for(const name of ['claim','resume','publish','send','login','like'])assert.ok(!tools.some(t=>t.name==='radar_'+name));
+ assert.equal((await client.callTool({name:'radar_capabilities',arguments:{}})).structuredContent.mode,'READ_AND_LOCAL_DRAFTS');
+ assert.equal((await client.callTool({name:'radar_publish',arguments:{}})).isError,true);assert.equal(calls.length,1);
+});
 test('cloud bridge exposes authorized operations and never accepts other projects or global mutations',async t=>{
  const calls=[];const server=createKevinCloudBridge(async(action,args)=>{calls.push({action,args});return {ok:true};});const client=new Client({name:'fixture',version:'1'},{capabilities:{}});const [a,b]=InMemoryTransport.createLinkedPair();await server.connect(a);await client.connect(b);t.after(()=>client.close());
  const tools=(await client.listTools()).tools;assert.equal(tools.length,15);assert.deepEqual(tools.find(t=>t.name==='distribution_approve').inputSchema.required,['projectId','planId','digest']);

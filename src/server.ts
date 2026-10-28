@@ -7,12 +7,17 @@ import { YouTubeSource } from "./connectors/youtube.js";
 import { PinterestDestination } from "./connectors/pinterest.js";
 import { packageForPinterest } from "./ai/pinterest-packager.js";
 
-export function createAppServer(options: {hub?: DistributionHub; credentials?: Credential[]} = {}) {
+export function createAppServer(options: {hub?: DistributionHub; credentials?: Credential[]; radar?: (req: import('node:http').IncomingMessage,res: import('node:http').ServerResponse)=>Promise<void>} = {}) {
 const control=hubApi(options.hub,options.credentials??[]);
 let legacyWindow=Date.now(),legacyRequests=0;
 return createServer(async (req, res) => {
   try {
     const requestUrl = new URL(req.url ?? "/", "http://localhost");
+
+    if(requestUrl.pathname.startsWith('/api/radar/')) {
+      if(!options.radar)return json(res,503,{error:'RADAR_DISABLED'});
+      return await options.radar(req,res);
+    }
 
     if (requestUrl.pathname.startsWith("/api/distribution/") || requestUrl.pathname === "/mcp") return await control(req,res);
 

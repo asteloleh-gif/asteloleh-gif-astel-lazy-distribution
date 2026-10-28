@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+umask 077
+# Create this environment file privately (0600) after authorization.
+# It contains shell assignments only, owned and reviewed by the user.
+# Never put it in git or upload it to an agent.
+set -a
+. /ABSOLUTE/PRIVATE/radar-worker.env
+set +a
+exec /ABSOLUTE/PATH/TO/node /ABSOLUTE/CHECKOUT/scripts/radar/daemon.mjs

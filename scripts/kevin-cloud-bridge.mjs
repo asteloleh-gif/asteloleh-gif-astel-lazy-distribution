@@ -3,16 +3,21 @@ import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import {ListToolsRequestSchema,CallToolRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 import {mcpDescriptor,validMcpReadArguments} from '../dist/hub/mcp-contract.js';
 import {fileURLToPath} from 'node:url';import {resolve} from 'node:path';
+import {radarDescriptor,radarOperatorActions} from './radar/contract.mjs';
 export const cloudActions=['capabilities','inbox','status','events','metrics','submit','preview','review','approve','schedule','cancel','reconcile','pause','resume','importeditorial'];
 const required={submit:['input'],preview:['input'],review:['planId'],approve:['planId','digest'],schedule:['planId'],cancel:['planId'],reconcile:['planId']};
 const error=code=>({isError:true,content:[{type:'text',text:code}]});
 export const youtubeReadActions=['youtubeaccount','youtubevideos','youtubeanalytics'];
-export function createKevinCloudBridge(call,{youtubeRead=false,ownerApprovalRequired=false}={}){
+export function createKevinCloudBridge(call,{youtubeRead=false,ownerApprovalRequired=false,radarCall}={}){
  const actions=(youtubeRead?[...cloudActions,...youtubeReadActions]:cloudActions).filter(a=>!ownerApprovalRequired||a!=='approve');
  const projects=ownerApprovalRequired?['copilot','subteam']:['copilot'];
  const server=new Server({name:'astel-distribution-kevin-cloud',version:'1'},{capabilities:{tools:{}}});
- server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:actions.map(action=>{const descriptor=mcpDescriptor(action);if(required[action])descriptor.inputSchema.required=['projectId',...required[action]];return descriptor;})}));
+ server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:[...actions.map(action=>{const descriptor=mcpDescriptor(action);if(required[action])descriptor.inputSchema.required=['projectId',...required[action]];return descriptor;}),...(radarCall?radarOperatorActions.map(radarDescriptor):[])]}));
  server.setRequestHandler(CallToolRequestSchema,async({params})=>{
+  if(radarCall&&params.name.startsWith('radar_')){
+    const action=params.name.slice(6);if(!radarOperatorActions.includes(action))return error('UNKNOWN_TOOL');
+    try{const data=await radarCall(action,params.arguments);return {structuredContent:data,content:[{type:'text',text:JSON.stringify(data)}]};}catch{return error('RADAR_OPERATION_FAILED');}
+  }
   const action=actions.find(a=>params.name==='distribution_'+a),args=params.arguments;
   if(!action)return error('UNKNOWN_TOOL');
   if(!args||!projects.includes(args.projectId)||args.global===true||args.input&&args.input.projectId!==args.projectId)return error('PROJECT_DENIED');
@@ -29,6 +34,6 @@ export function cloudHubCall(token,port,fetcher=fetch){
  };
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- try{if(process.env.LD_KEVIN_CLOUD_ENABLED!=='true')throw Error('DISABLED');await createKevinCloudBridge(cloudHubCall(process.env.LD_KEVIN_HUB_TOKEN,Number(process.env.PORT||8080)),{youtubeRead:process.env.LD_YOUTUBE_FAMILY_ENABLED==='true',ownerApprovalRequired:process.env.LD_ASAPTEAM_WORKFLOW_ENABLED==='true'}).connect(new StdioServerTransport());}
+ try{if(process.env.LD_KEVIN_CLOUD_ENABLED!=='true')throw Error('DISABLED');let radarCall;if(process.env.RADAR_ENABLED==='true'){const {radarClient}=await import('./radar/client.mjs');radarCall=radarClient({url:`http://127.0.0.1:${Number(process.env.PORT||8080)}`,token:process.env.LD_KEVIN_HUB_TOKEN});}await createKevinCloudBridge(cloudHubCall(process.env.LD_KEVIN_HUB_TOKEN,Number(process.env.PORT||8080)),{radarCall,youtubeRead:process.env.LD_YOUTUBE_FAMILY_ENABLED==='true',ownerApprovalRequired:process.env.LD_ASAPTEAM_WORKFLOW_ENABLED==='true'}).connect(new StdioServerTransport());}
  catch{console.error('Kevin cloud bridge startup blocked.');process.exitCode=1;}
 }
