@@ -36,6 +36,8 @@ export function createRadarApi({radar,credentials=[],workers=[]}){
         case 'drafts':result={items:radar.drafts(a.taskId)};break;
         case 'draft':result=radar.draft(a.taskId,a,actor);break;
         case 'resume':result=radar.resume(a.taskId,actor,a);break;
+        case 'claimsetup':result=radar.claim(a.taskId,actor,worker.accounts,worker.primary===true,true);break;
+        case 'setupcomplete':result=radar.setupcomplete(a.taskId,actor,a.generation,a.activeAccount,a.browserClosed);break;
         case 'claim':result=radar.claim(a.taskId,actor,worker.accounts,worker.primary===true);break;
         case 'heartbeat':result=radar.heartbeat(a.taskId,actor,a.generation);break;
         case 'checkpoint':result=radar.checkpoint(a.taskId,actor,a.generation,a.checkpoint);break;

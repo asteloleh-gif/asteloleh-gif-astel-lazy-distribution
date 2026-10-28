@@ -55,7 +55,7 @@ printf '%s' '{}' | node scripts/radar/client.mjs capabilities
 printf '%s' '{"account":"leoakastel:threads","batch":"pilot-001","query":"AI automation"}' | node scripts/radar/client.mjs create
 ```
 
-No real login was performed. For approved manual login, claim a dedicated setup task with the worker identity; set RADAR_LOGIN_AUTHORIZED=true and use `node scripts/radar/login.mjs TASK_ID`. Password/MFA entry happens only in the visible browser. It holds the account lock and ends yellow after closing. Owner verifies stop before resuming. No session upload. CAPTCHA/block stops automated actions; never add bypass steps.
+No real login was performed. For approved manual login, claim a dedicated setup task with the worker identity; set RADAR_LOGIN_AUTHORIZED=true and use `node scripts/radar/login.mjs TASK_ID`. Password/MFA entry happens only in the visible browser. Use the reserved query `manual login setup only`. It holds the account lock and finishes as SETUP_COMPLETE only after identity verification and successful browser close. Failures stay HOLD; owner verifies stop before recovery. Setup tasks are excluded from the daemon and ordinary claims. No session upload. CAPTCHA/block stops automated actions; never add bypass steps.
 
 ## Acceptance gates
 

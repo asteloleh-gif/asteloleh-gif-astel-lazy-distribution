@@ -28,5 +28,5 @@ export async function runWorker({call,openBrowser,taskId,candidateUrls}){
   }finally{clearInterval(timer);await browser?.close().catch(()=>{});}
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  try{const taskId=process.argv[2];if(!taskId)throw Error('TASK_ID_REQUIRED');console.log(JSON.stringify(await runWorker({taskId,call:radarClient(),openBrowser:ReadBrowser.open}),null,2));}catch(e){console.error(/^[A-Z_]+$/.test(e.message)?e.message:'WORKER_FAILED');process.exitCode=1;}
+  try{const taskId=process.argv[2];if(!taskId)throw Error('TASK_ID_REQUIRED');console.log(JSON.stringify(await runWorker({taskId,call:radarClient(),openBrowser:ReadBrowser.open,candidateUrls:process.argv[3]?[process.argv[3]]:undefined}),null,2));}catch(e){console.error(/^[A-Z_]+$/.test(e.message)?e.message:'WORKER_FAILED');process.exitCode=1;}
 }
