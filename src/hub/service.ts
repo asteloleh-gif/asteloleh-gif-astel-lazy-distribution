@@ -3,6 +3,7 @@ import { authorize, fail, hash, validate, actionScopes } from './contract.js';
 import type { Principal, Route, Plan, PlanInput, Delivery, Receipt, State, Scope } from './contract.js';
 import type { Store, Journal } from './store.js';
 import type { PublishingAdapter } from './openpost.js';
+import {videoReviewGate} from './video-workspace.js';
 export class DistributionHub {
   youtube?:{account():Promise<unknown>;videos():Promise<{channelId:string;items:any[];count:number}>;analytics(startDate:string,endDate:string):Promise<unknown>};
   youtubeAccounts:Record<string,NonNullable<DistributionHub["youtube"]>>={};
@@ -79,6 +80,7 @@ export class DistributionHub {
       const plan=j.plans[args.planId];if(!plan||plan.input.projectId!==args.projectId) return fail('PLAN_NOT_FOUND',404);
       if(action==='status')return structuredClone(plan);
       if(hash(plan.input)!==plan.digest) return fail('PLAN_INTEGRITY_FAILURE',503);
+      videoReviewGate(j,plan,action,Date.parse(this.now()));
       if(action==='review'){
         if(plan.state!=='DRAFT'&&plan.state!=='NEEDS_APPROVAL')return fail('INVALID_STATE');
         for(const d of plan.deliveries)await this.adapter(d).validate(this.command(plan,d));
