@@ -48,14 +48,18 @@ export class BufferAdapter implements PublishingAdapter {
     const matches=this.bindings.filter(b=>b.accountKey===c.target.accountKey&&b.platform===c.target.platform);
     if(matches.length!==1)return fail('BUFFER_BINDING_DENIED',403);return matches[0];
   }
-  private async query(query:string,variables:Record<string,unknown>,write=false):Promise<any>{
+  private async query(query:string,variables:Record<string,unknown>,write=false,preserveCreateResponse=false):Promise<any>{
     await this.budget.reserve(this.accountId,write);
     let response:Response;
     try{response=await this.fetcher('https://api.buffer.com',{method:'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},
       body:JSON.stringify({query,variables}),redirect:'error',signal:AbortSignal.timeout(15000)});}catch{return fail('BUFFER_TRANSPORT_UNCONFIRMED',502);}
     if(!response.ok)return fail(response.status===429?'BUFFER_RATE_LIMITED':'BUFFER_REQUEST_FAILED',502);
     const result=await response.json().catch(()=>fail('BUFFER_INVALID_RESPONSE',502));
-    if(result.errors||!result.data)return fail('BUFFER_GRAPHQL_FAILED',502);return result.data;
+    if(result.errors||!result.data){
+      // A partial create response can contain a real ID even when a metadata resolver failed.
+      if(preserveCreateResponse&&result.data?.createPost?.post?.id)return {...result.data,__hubGraphqlErrors:true};
+      return fail('BUFFER_GRAPHQL_FAILED',502);
+    }return result.data;
   }
   async validate(c:AdapterCommand){
     this.binding(c);const v=c.plan.variants[c.target.variant];
@@ -107,16 +111,21 @@ export class BufferAdapter implements PublishingAdapter {
       ...(asset?.kind==='reel'?{metadata:{instagram:{type:'reel',shouldShareToFeed:true}}}:{}),
       ...(c.target.platform==='threads'&&v.threads?{metadata:{threads:{topic:v.threads.topic}}}:{}),
       schedulingType:'automatic',...(c.target.platform==='instagram'&&this.options.instagramFormats?instagramPayload(v,c.plan.assets):{}),mode:'customScheduled',dueAt:c.target.scheduledAt,needsApproval:false,aiAssisted:false};
-    const data=await this.query(`mutation($input:CreatePostInput!){createPost(input:$input){__typename ... on PostActionSuccess{post{${this.fields(c)}}}}}`,{input},true);
+    const data=await this.query(`mutation($input:CreatePostInput!){createPost(input:$input){__typename ... on PostActionSuccess{post{${this.fields(c)}}}}}`,{input},true,true);
     const p=data.createPost?.post;
     if(data.createPost?.__typename!=='PostActionSuccess'||!p?.id)return fail('BUFFER_CREATE_UNCONFIRMED',502);
     // Persist remote identity before any readback. No automatic create retry, even on timeout.
-    await checkpoint(p.id);this.check(p,c,p.id,true);return this.receipt(p,c);
+    await checkpoint(p.id);
+    if(data.__hubGraphqlErrors)return fail('BUFFER_CREATE_UNCONFIRMED',502);
+    this.check(p,c,p.id,true);return this.receipt(p,c);
   }
   private fields(c:AdapterCommand){return fields+(c.target.platform==='threads'&&c.plan.variants[c.target.variant].threads?' metadata{... on ThreadsPostMetadata{topic}}':'')+(this.options.instagramFormats&&c.target.platform==='instagram'?' schedulingType metadata{... on InstagramPostMetadata{type shouldShareToFeed}}':'');}
-  private check(p:any,c:AdapterCommand,id:string,schedule=false){
+  private check(p:any,c:AdapterCommand,id:string,schedule=false,confirmTopic=true){
     const topic=c.plan.variants[c.target.variant].threads?.topic;
-    if(c.target.platform==='threads'&&topic!==undefined&&p?.metadata?.topic!==topic)fail('BUFFER_THREADS_TOPIC_MISMATCH',502);
+    if(confirmTopic&&c.target.platform==='threads'&&topic!==undefined){
+      if(typeof p?.metadata?.topic!=='string')fail('BUFFER_THREADS_TOPIC_UNCONFIRMED',502);
+      if(p.metadata.topic!==topic)fail('BUFFER_THREADS_TOPIC_MISMATCH',502);
+    }
     if(this.options.instagramFormats&&c.target.platform==='instagram'){
       const v=c.plan.variants[c.target.variant],f=instagramVariant(v,c.plan.assets);
       if(v.instagram||v.assetIndices||f.type==='reel'||f.selected.some(a=>a.kind==='video')){
@@ -144,7 +153,7 @@ export class BufferAdapter implements PublishingAdapter {
   async status(id:string,c:AdapterCommand){const p=await this.post(id,c);this.check(p,c,id);return this.receipt(p,c);}
   async cancel(id:string,c:AdapterCommand):Promise<Receipt>{
     if(!this.enabled)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
-    const p=await this.post(id,c);this.check(p,c,id);
+    const p=await this.post(id,c);this.check(p,c,id,false,false);
     if(p.status!=='scheduled'||!p.allowedActions?.includes('deletePost'))return fail('BUFFER_CANCEL_NOT_SAFE',409);
     const data=await this.query('mutation($input:DeletePostInput!){deletePost(input:$input){__typename ... on DeletePostSuccess{id}}}',{input:{id}},true);
     if(data.deletePost?.__typename!=='DeletePostSuccess'||data.deletePost.id!==id)return fail('BUFFER_CANCEL_UNCONFIRMED',502);

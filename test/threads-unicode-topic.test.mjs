@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {FileStore} from '../dist/hub/store.js';
+import {provision} from '../dist/hub/provision.js';
 import {validate,hash} from '../dist/hub/contract.js';
 import {DistributionHub} from '../dist/hub/service.js';
 import {BufferAdapter} from '../dist/hub/buffer.js';
@@ -10,12 +14,14 @@ const input=(text,topic)=>({contractVersion:1,projectId:'p',brandId:'b',contentI
 const check=x=>validate(x,principal,[{...route,mode:x.mode}],[]);
 const schema={metadata:{inputFields:[{name:'threads'}]},threads:{inputFields:[{name:'topic'}]}};
 const response=data=>new Response(JSON.stringify({data}));
-function setup(plan,{supported=true,echo=true,error=false}={}){
+function setup(plan,{supported=true,echo=true,error=false,partial=false}={}){
  const calls=[];const c={deliveryId:'d',plan,target:plan.destinations[0]};
  const a=new BufferAdapter('buffer','fixture','account',[{accountKey:'a',platform:'threads',channelId:'ch'}],{async reserve(){}},true,async(url,o)=>{
   const b=JSON.parse(o.body);calls.push(b);
   if(b.query.includes('metadata:__type'))return response(supported?schema:{});
-  const post={id:'post',channelId:'ch',text:plan.variants.v.text,dueAt:c.target.scheduledAt,status:'scheduled',metadata:echo?{topic:plan.variants.v.threads?.topic}:null};
+  const post={id:'post',channelId:'ch',text:plan.variants.v.text,dueAt:c.target.scheduledAt,status:'scheduled',allowedActions:['deletePost'],metadata:echo?{topic:typeof echo==='string'?echo:plan.variants.v.threads?.topic}:null};
+  if(b.query.includes('deletePost(input:'))return response({deletePost:{__typename:'DeletePostSuccess',id:'post'}});
+  if(partial&&b.query.startsWith('mutation'))return new Response(JSON.stringify({data:{createPost:{__typename:'PostActionSuccess',post}},errors:[{message:'metadata unavailable'}]}));
   if(error)return new Response(JSON.stringify({errors:[{message:'unsupported'}]}));
   return response(b.query.startsWith('mutation')?{createPost:{__typename:'PostActionSuccess',post}}:{post});
  });return {a,c,calls};
@@ -60,7 +66,39 @@ test('unsupported topic stops before any mutation; mismatch checkpoints and fail
  const plan=check(input('Текст','AI'));const blocked=setup(plan,{supported:false});
  await assert.rejects(()=>blocked.a.submit(blocked.c,async()=>assert.fail()),e=>e.code==='BUFFER_THREADS_TOPIC_UNSUPPORTED');assert.equal(blocked.calls.length,1);
  const mismatch=setup(plan,{echo:false});const ids=[];
- await assert.rejects(()=>mismatch.a.submit(mismatch.c,async id=>ids.push(id)),e=>e.code==='BUFFER_THREADS_TOPIC_MISMATCH');assert.deepEqual(ids,['post']);
- await assert.rejects(()=>mismatch.a.status('post',mismatch.c),e=>e.code==='BUFFER_THREADS_TOPIC_MISMATCH');
+ await assert.rejects(()=>mismatch.a.submit(mismatch.c,async id=>ids.push(id)),e=>e.code==='BUFFER_THREADS_TOPIC_UNCONFIRMED');assert.deepEqual(ids,['post']);
+ await assert.rejects(()=>mismatch.a.status('post',mismatch.c),e=>e.code==='BUFFER_THREADS_TOPIC_UNCONFIRMED');
  const failed=setup(plan,{error:true});await assert.rejects(()=>failed.a.submit(failed.c,async()=>assert.fail()),e=>e.code==='BUFFER_GRAPHQL_FAILED');
+});
+
+test('Hub restart and schedule retries never duplicate a create with unconfirmed topic or partial response',async t=>{
+ for(const partial of [false,true]){
+  const dir=await mkdtemp(join(tmpdir(),'threads-checkpoint-'));t.after(()=>rm(dir,{recursive:true,force:true}));await provision(dir,'fixture');
+  const plan=check(input('Текст','AI')),options={echo:false,partial};const {a,calls}=setup(plan,options);
+  const producer={...principal,scopes:['submit','review','schedule','reconcile','status']};
+  const owner={id:'owner',role:'owner',projects:['p'],scopes:['approve']};
+  const make=()=>new DistributionHub(new FileStore(dir,'fixture'),[route],[],{buffer:a},()=> '2029-01-01T00:00:00Z');
+  let hub=make();const p=await hub.execute(producer,'submit',{projectId:'p',input:plan});const args={projectId:'p',planId:p.id};
+  await hub.execute(producer,'review',args);await hub.execute(owner,'approve',{...args,digest:p.digest});
+  let result=await hub.execute(producer,'schedule',args);
+  assert.equal(result.state,'AMBIGUOUS_HOLD');assert.equal(result.deliveries[0].receipt.providerId,'post');
+  hub=make();result=await hub.execute(producer,'schedule',args);assert.equal(result.deliveries[0].attempts,1);
+  await hub.execute(producer,'reconcile',args);await hub.execute(producer,'schedule',args);
+  assert.equal(calls.filter(c=>c.query.startsWith('mutation')).length,1);
+  assert.ok(calls.some(c=>c.query.startsWith('query($input:PostInput')&&c.variables.input.id==='post'));
+ }
+});
+test('only a concrete unequal returned topic is a mismatch',async()=>{
+ const {a,c}=setup(check(input('Текст','AI')),{echo:'UGC'});const ids=[];
+ await assert.rejects(()=>a.submit(c,async id=>ids.push(id)),e=>e.code==='BUFFER_THREADS_TOPIC_MISMATCH');assert.deepEqual(ids,['post']);
+});
+
+test('unconfirmed or mismatching topic does not prevent safe cancellation of an identified scheduled post',async()=>{
+ for(const echo of [false,'UGC']){
+  const {a,c,calls}=setup(check(input('Текст','AI')),{echo});
+  assert.equal((await a.cancel('post',c)).state,'CANCELLED');
+  assert.equal(calls.filter(c=>c.query.includes('deletePost(input:')).length,1);
+  await assert.rejects(()=>a.cancel('different-id',c),e=>e.code==='BUFFER_POST_IDENTITY_MISMATCH');
+  assert.equal(calls.filter(c=>c.query.includes('deletePost(input:')).length,1);
+ }
 });
