@@ -119,7 +119,7 @@ export class BufferAdapter implements PublishingAdapter {
     if(data.__hubGraphqlErrors)return fail('BUFFER_CREATE_UNCONFIRMED',502);
     this.check(p,c,p.id,true);return this.receipt(p,c);
   }
-  private fields(c:AdapterCommand){return fields+(c.target.platform==='threads'&&c.plan.variants[c.target.variant].threads?' metadata{... on ThreadsPostMetadata{topic}}':'')+(this.options.instagramFormats&&c.target.platform==='instagram'?' schedulingType metadata{... on InstagramPostMetadata{type shouldShareToFeed}}':'');}
+  private fields(c:AdapterCommand,confirmTopic=true){return fields+(confirmTopic&&c.target.platform==='threads'&&c.plan.variants[c.target.variant].threads?' metadata{... on ThreadsPostMetadata{topic}}':'')+(this.options.instagramFormats&&c.target.platform==='instagram'?' schedulingType metadata{... on InstagramPostMetadata{type shouldShareToFeed}}':'');}
   private check(p:any,c:AdapterCommand,id:string,schedule=false,confirmTopic=true){
     const topic=c.plan.variants[c.target.variant].threads?.topic;
     if(confirmTopic&&c.target.platform==='threads'&&topic!==undefined){
@@ -149,11 +149,11 @@ export class BufferAdapter implements PublishingAdapter {
     }
     return {providerId:p.id,state:'PROVIDER_ACCEPTED',providerStatus:p.status,...(p.status==='sent'&&p.externalLink?{permalink:p.externalLink}:{})};
   }
-  private async post(id:string,c:AdapterCommand){return (await this.query(`query($input:PostInput!){post(input:$input){${this.fields(c)}}}`,{input:{id}})).post;}
+  private async post(id:string,c:AdapterCommand,confirmTopic=true){return (await this.query(`query($input:PostInput!){post(input:$input){${this.fields(c,confirmTopic)}}}`,{input:{id}})).post;}
   async status(id:string,c:AdapterCommand){const p=await this.post(id,c);this.check(p,c,id);return this.receipt(p,c);}
   async cancel(id:string,c:AdapterCommand):Promise<Receipt>{
     if(!this.enabled)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
-    const p=await this.post(id,c);this.check(p,c,id,false,false);
+    const p=await this.post(id,c,false);this.check(p,c,id,false,false);
     if(p.status!=='scheduled'||!p.allowedActions?.includes('deletePost'))return fail('BUFFER_CANCEL_NOT_SAFE',409);
     const data=await this.query('mutation($input:DeletePostInput!){deletePost(input:$input){__typename ... on DeletePostSuccess{id}}}',{input:{id}},true);
     if(data.deletePost?.__typename!=='DeletePostSuccess'||data.deletePost.id!==id)return fail('BUFFER_CANCEL_UNCONFIRMED',502);

@@ -12,4 +12,4 @@ Schema support does not establish availability of a particular proposed topic or
 
 Read-only schema introspection follows https://graphql.org/learn/introspection/ and uses the existing Buffer credential and budget. Its availability for the deployed account has not been exercised here; rejection blocks readiness without requesting additional access. The Buffer reference does not document a dedicated Threads topic lookup/validation query, so schema introspection cannot certify that a candidate topic exists or is accepted.
 
-Cancellation skips topic confirmation, while retaining exact ID/channel/text checks, scheduled state and `deletePost` permission checks, so an unconfirmed topic does not prevent authorized recovery cancellation.
+Cancellation omits Threads topic metadata from its read and skips topic confirmation, while retaining exact ID/channel/text checks, scheduled state and `deletePost` permission checks, so an unconfirmed topic does not prevent authorized recovery cancellation.

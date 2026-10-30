@@ -14,12 +14,13 @@ const input=(text,topic)=>({contractVersion:1,projectId:'p',brandId:'b',contentI
 const check=x=>validate(x,principal,[{...route,mode:x.mode}],[]);
 const schema={metadata:{inputFields:[{name:'threads'}]},threads:{inputFields:[{name:'topic'}]}};
 const response=data=>new Response(JSON.stringify({data}));
-function setup(plan,{supported=true,echo=true,error=false,partial=false}={}){
+function setup(plan,{supported=true,echo=true,error=false,partial=false,topicResolverError=false}={}){
  const calls=[];const c={deliveryId:'d',plan,target:plan.destinations[0]};
  const a=new BufferAdapter('buffer','fixture','account',[{accountKey:'a',platform:'threads',channelId:'ch'}],{async reserve(){}},true,async(url,o)=>{
   const b=JSON.parse(o.body);calls.push(b);
   if(b.query.includes('metadata:__type'))return response(supported?schema:{});
   const post={id:'post',channelId:'ch',text:plan.variants.v.text,dueAt:c.target.scheduledAt,status:'scheduled',allowedActions:['deletePost'],metadata:echo?{topic:typeof echo==='string'?echo:plan.variants.v.threads?.topic}:null};
+  if(topicResolverError&&b.query.includes('ThreadsPostMetadata{topic}'))return new Response(JSON.stringify({data:{post},errors:[{message:'topic resolver failed'}]}));
   if(b.query.includes('deletePost(input:'))return response({deletePost:{__typename:'DeletePostSuccess',id:'post'}});
   if(partial&&b.query.startsWith('mutation'))return new Response(JSON.stringify({data:{createPost:{__typename:'PostActionSuccess',post}},errors:[{message:'metadata unavailable'}]}));
   if(error)return new Response(JSON.stringify({errors:[{message:'unsupported'}]}));
@@ -95,8 +96,9 @@ test('only a concrete unequal returned topic is a mismatch',async()=>{
 
 test('unconfirmed or mismatching topic does not prevent safe cancellation of an identified scheduled post',async()=>{
  for(const echo of [false,'UGC']){
-  const {a,c,calls}=setup(check(input('Текст','AI')),{echo});
+  const {a,c,calls}=setup(check(input('Текст','AI')),{echo,topicResolverError:true});
   assert.equal((await a.cancel('post',c)).state,'CANCELLED');
+  assert.ok(calls.every(call=>!call.query.includes('ThreadsPostMetadata')));
   assert.equal(calls.filter(c=>c.query.includes('deletePost(input:')).length,1);
   await assert.rejects(()=>a.cancel('different-id',c),e=>e.code==='BUFFER_POST_IDENTITY_MISMATCH');
   assert.equal(calls.filter(c=>c.query.includes('deletePost(input:')).length,1);
