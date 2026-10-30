@@ -6,13 +6,16 @@ import { createServer } from "node:http";
 import { YouTubeSource } from "./connectors/youtube.js";
 import { PinterestDestination } from "./connectors/pinterest.js";
 import { packageForPinterest } from "./ai/pinterest-packager.js";
+import {VideoWorkspace,videoWorkspaceApi} from './hub/video-workspace.js';
 
 export function createAppServer(options: {hub?: DistributionHub; credentials?: Credential[]; radar?: (req: import('node:http').IncomingMessage,res: import('node:http').ServerResponse)=>Promise<void>} = {}) {
 const control=hubApi(options.hub,options.credentials??[]);
+const video=videoWorkspaceApi(options.hub&&process.env.VIDEO_WORKSPACE_ENABLED==='true'?new VideoWorkspace(options.hub):undefined,options.credentials??[]);
 let legacyWindow=Date.now(),legacyRequests=0;
 return createServer(async (req, res) => {
   try {
     const requestUrl = new URL(req.url ?? "/", "http://localhost");
+    if(requestUrl.pathname.startsWith('/api/video-workspace/'))return await video(req,res);
 
     if(requestUrl.pathname.startsWith('/api/radar/')) {
       if(!options.radar)return json(res,503,{error:'RADAR_DISABLED'});

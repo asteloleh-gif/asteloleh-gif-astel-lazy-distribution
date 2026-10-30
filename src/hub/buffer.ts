@@ -2,7 +2,7 @@ import {instagramVariant,instagramPayload} from './instagram-format.js';
 import {open,readFile,rename,unlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {MediaProbe} from './drive-media.js';
-import {fail,hash} from './contract.js';
+import {fail,hash,validateThreadsTopic} from './contract.js';
 import type {Receipt} from './contract.js';
 import type {AdapterCommand,PublishingAdapter} from './openpost.js';
 
@@ -38,7 +38,7 @@ export class BufferAdapter implements PublishingAdapter {
   constructor(readonly id:string,private token:string,private accountId:string,private bindings:BufferBinding[],
     private budget:RequestBudget,private enabled=false,private fetcher:typeof fetch=fetch,
     private confirm?: (link:string,c:AdapterCommand)=>Promise<{platformPostId:string;confirmedAt:string}|undefined>,
-    private releaseDigests?:string[], private delegatedApprovalActors:string[]=[],private options:{reels?:boolean;probe?:MediaProbe;verifyIdentity?:boolean;accountKeys?:string[];instagramFormats?:boolean;firstComment?:boolean}={}){
+    private releaseDigests?:string[], private delegatedApprovalActors:(string|{actor:string;projectId:string})[]=[],private options:{reels?:boolean;probe?:MediaProbe;verifyIdentity?:boolean;accountKeys?:string[];instagramFormats?:boolean;firstComment?:boolean}={}){
       if(releaseDigests&&(!Array.isArray(releaseDigests)||releaseDigests.some(d=>typeof d!=='string'||!/^[a-f0-9]{64}$/.test(d))))fail('BUFFER_RELEASE_CONFIG_INVALID',503);
     }
   capabilities(){return {...(this.options.instagramFormats&&this.bindings.some(b=>b.platform==='instagram')?{instagramFormats:['image','carousel','reel','story'],notificationRequiresDevice:true,firstComment:this.options.firstComment===true}:{}),executionOwner:'provider' as const,schedule:this.enabled,cancel:this.enabled,live:this.enabled};}
@@ -48,19 +48,29 @@ export class BufferAdapter implements PublishingAdapter {
     const matches=this.bindings.filter(b=>b.accountKey===c.target.accountKey&&b.platform===c.target.platform);
     if(matches.length!==1)return fail('BUFFER_BINDING_DENIED',403);return matches[0];
   }
-  private async query(query:string,variables:Record<string,unknown>,write=false):Promise<any>{
+  private async query(query:string,variables:Record<string,unknown>,write=false,preserveCreateResponse=false):Promise<any>{
     await this.budget.reserve(this.accountId,write);
     let response:Response;
     try{response=await this.fetcher('https://api.buffer.com',{method:'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},
       body:JSON.stringify({query,variables}),redirect:'error',signal:AbortSignal.timeout(15000)});}catch{return fail('BUFFER_TRANSPORT_UNCONFIRMED',502);}
     if(!response.ok)return fail(response.status===429?'BUFFER_RATE_LIMITED':'BUFFER_REQUEST_FAILED',502);
     const result=await response.json().catch(()=>fail('BUFFER_INVALID_RESPONSE',502));
-    if(result.errors||!result.data)return fail('BUFFER_GRAPHQL_FAILED',502);return result.data;
+    if(result.errors||!result.data){
+      // A partial create response can contain a real ID even when a metadata resolver failed.
+      if(preserveCreateResponse&&result.data?.createPost?.post?.id)return {...result.data,__hubGraphqlErrors:true};
+      return fail('BUFFER_GRAPHQL_FAILED',502);
+    }return result.data;
   }
   async validate(c:AdapterCommand){
     this.binding(c);const v=c.plan.variants[c.target.variant];
     if(!v||!Number.isFinite(Date.parse(c.target.scheduledAt)))return fail('BUFFER_INVALID_MATERIAL',400);
-    if(c.target.platform==='threads'&&v.asset!==undefined)return fail('BUFFER_THREADS_TEXT_ONLY',400);
+    if(c.target.platform==='threads'&&(v.asset!==undefined||v.text.length>500))return fail('BUFFER_THREADS_TEXT_ONLY',400);
+    if(c.target.platform==='threads'&&v.threads!==undefined){
+      validateThreadsTopic(v.threads.topic);
+      // Fail closed before scheduling if this provider schema cannot carry the native topic.
+      const schema=await this.query('query{metadata:__type(name:"PostInputMetaData"){inputFields{name}} threads:__type(name:"ThreadsPostMetadataInput"){inputFields{name}}} ',{});
+      if(!schema.metadata?.inputFields?.some((f:any)=>f.name==='threads')||!schema.threads?.inputFields?.some((f:any)=>f.name==='topic'))return fail('BUFFER_THREADS_TOPIC_UNSUPPORTED',503);
+    }
     if(c.target.platform==='instagram'){
       const v=c.plan.variants[c.target.variant];
       const extended=!!(v.instagram||v.assetIndices||c.plan.assets.some(a=>a.kind==='video'||a.altText!==undefined||a.userTags!==undefined||a.thumbnailOffset!==undefined));
@@ -94,20 +104,28 @@ export class BufferAdapter implements PublishingAdapter {
   }
   async submit(c:AdapterCommand,checkpoint:(id:string)=>Promise<void>):Promise<Receipt>{
     if(!this.enabled)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
-    if(this.releaseDigests&&!this.releaseDigests.includes(hash(c.plan))&&!this.delegatedApprovalActors.includes(c.approvalActor??''))return fail('BUFFER_MATERIAL_NOT_RELEASED',403);
+    if(this.releaseDigests&&!this.releaseDigests.includes(hash(c.plan))&&!this.delegatedApprovalActors.some(a=>typeof a==='string'?a===c.approvalActor:a.actor===c.approvalActor&&a.projectId===c.plan.projectId))return fail('BUFFER_MATERIAL_NOT_RELEASED',403);
     await this.validate(c);const b=this.binding(c),v=c.plan.variants[c.target.variant];
     const asset=v.asset===undefined?undefined:c.plan.assets[v.asset];
     const input={channelId:b.channelId,text:v.text,assets:asset?[asset.kind==='reel'?{video:{url:asset.url}}:{image:{url:asset.url}}]:[],
       ...(asset?.kind==='reel'?{metadata:{instagram:{type:'reel',shouldShareToFeed:true}}}:{}),
+      ...(c.target.platform==='threads'&&v.threads?{metadata:{threads:{topic:v.threads.topic}}}:{}),
       schedulingType:'automatic',...(c.target.platform==='instagram'&&this.options.instagramFormats?instagramPayload(v,c.plan.assets):{}),mode:'customScheduled',dueAt:c.target.scheduledAt,needsApproval:false,aiAssisted:false};
-    const data=await this.query(`mutation($input:CreatePostInput!){createPost(input:$input){__typename ... on PostActionSuccess{post{${this.fields(c)}}}}}`,{input},true);
+    const data=await this.query(`mutation($input:CreatePostInput!){createPost(input:$input){__typename ... on PostActionSuccess{post{${this.fields(c)}}}}}`,{input},true,true);
     const p=data.createPost?.post;
     if(data.createPost?.__typename!=='PostActionSuccess'||!p?.id)return fail('BUFFER_CREATE_UNCONFIRMED',502);
     // Persist remote identity before any readback. No automatic create retry, even on timeout.
-    await checkpoint(p.id);this.check(p,c,p.id,true);return this.receipt(p,c);
+    await checkpoint(p.id);
+    if(data.__hubGraphqlErrors)return fail('BUFFER_CREATE_UNCONFIRMED',502);
+    this.check(p,c,p.id,true);return this.receipt(p,c);
   }
-  private fields(c:AdapterCommand){return fields+(this.options.instagramFormats&&c.target.platform==='instagram'?' schedulingType metadata{... on InstagramPostMetadata{type shouldShareToFeed}}':'');}
-  private check(p:any,c:AdapterCommand,id:string,schedule=false){
+  private fields(c:AdapterCommand,confirmTopic=true){return fields+(confirmTopic&&c.target.platform==='threads'&&c.plan.variants[c.target.variant].threads?' metadata{... on ThreadsPostMetadata{topic}}':'')+(this.options.instagramFormats&&c.target.platform==='instagram'?' schedulingType metadata{... on InstagramPostMetadata{type shouldShareToFeed}}':'');}
+  private check(p:any,c:AdapterCommand,id:string,schedule=false,confirmTopic=true){
+    const topic=c.plan.variants[c.target.variant].threads?.topic;
+    if(confirmTopic&&c.target.platform==='threads'&&topic!==undefined){
+      if(typeof p?.metadata?.topic!=='string')fail('BUFFER_THREADS_TOPIC_UNCONFIRMED',502);
+      if(p.metadata.topic!==topic)fail('BUFFER_THREADS_TOPIC_MISMATCH',502);
+    }
     if(this.options.instagramFormats&&c.target.platform==='instagram'){
       const v=c.plan.variants[c.target.variant],f=instagramVariant(v,c.plan.assets);
       if(v.instagram||v.assetIndices||f.type==='reel'||f.selected.some(a=>a.kind==='video')){
@@ -131,11 +149,11 @@ export class BufferAdapter implements PublishingAdapter {
     }
     return {providerId:p.id,state:'PROVIDER_ACCEPTED',providerStatus:p.status,...(p.status==='sent'&&p.externalLink?{permalink:p.externalLink}:{})};
   }
-  private async post(id:string,c:AdapterCommand){return (await this.query(`query($input:PostInput!){post(input:$input){${this.fields(c)}}}`,{input:{id}})).post;}
+  private async post(id:string,c:AdapterCommand,confirmTopic=true){return (await this.query(`query($input:PostInput!){post(input:$input){${this.fields(c,confirmTopic)}}}`,{input:{id}})).post;}
   async status(id:string,c:AdapterCommand){const p=await this.post(id,c);this.check(p,c,id);return this.receipt(p,c);}
   async cancel(id:string,c:AdapterCommand):Promise<Receipt>{
     if(!this.enabled)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
-    const p=await this.post(id,c);this.check(p,c,id);
+    const p=await this.post(id,c,false);this.check(p,c,id,false,false);
     if(p.status!=='scheduled'||!p.allowedActions?.includes('deletePost'))return fail('BUFFER_CANCEL_NOT_SAFE',409);
     const data=await this.query('mutation($input:DeletePostInput!){deletePost(input:$input){__typename ... on DeletePostSuccess{id}}}',{input:{id}},true);
     if(data.deletePost?.__typename!=='DeletePostSuccess'||data.deletePost.id!==id)return fail('BUFFER_CANCEL_UNCONFIRMED',502);
