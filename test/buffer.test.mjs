@@ -112,3 +112,9 @@ test('delegated release applies only to trusted server approval actor; producer 
  const spoofed=structuredClone(c);spoofed.plan.approval={actor:'kevin-cloud'};await assert.rejects(()=>a.submit(spoofed,async()=>{}),e=>e.code==='BUFFER_MATERIAL_NOT_RELEASED');assert.equal(calls,0);
  await a.submit({...c,approvalActor:'kevin-cloud'},async()=>{});assert.equal(calls,1);
 });
+test('delegated Buffer release actor is restricted to its configured project',async()=>{
+ let creates=0;const a=new BufferAdapter('buffer-threads','fixture','fixture',[binding],budget,true,async()=>{creates++;return response({createPost:{__typename:'PostActionSuccess',post:remote}});},undefined,[],[{actor:'kevin-cloud',projectId:'copilot'}]);
+ for(const projectId of ['subteam','foreign'])await assert.rejects(()=>a.submit({...c,plan:{...c.plan,projectId},approvalActor:'kevin-cloud'},async()=>{}),e=>e.code==='BUFFER_MATERIAL_NOT_RELEASED');
+ await assert.rejects(()=>a.submit({...c,approvalActor:'other'},async()=>{}),e=>e.code==='BUFFER_MATERIAL_NOT_RELEASED');assert.equal(creates,0);
+ assert.equal((await a.submit({...c,approvalActor:'kevin-cloud'},async()=>{})).state,'PROVIDER_ACCEPTED');assert.equal(creates,1);
+});

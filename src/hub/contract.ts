@@ -8,7 +8,7 @@ export class HubError extends Error {
 export const fail = (code: string, status = 409): never => { throw new HubError(status, code); };
 export type Scope = 'submit'|'status'|'review'|'approve'|'schedule'|'cancel'|'reconcile'|'pause'|'editorial';
 export const actionScopes:Record<string,Scope>={youtubeaccount:'status',youtubevideos:'status',youtubeanalytics:'status',importeditorial:'editorial',capabilities:'status',inbox:'status',submit:'submit',preview:'submit',review:'review',approve:'approve',schedule:'schedule',status:'status',cancel:'cancel',reconcile:'reconcile',pause:'pause',resume:'pause',events:'status',metrics:'status'};
-export type Principal = { delegatedApproval?: boolean; id: string; role: 'producer'|'owner'; scopes: Scope[]; projects: string[] };
+export type Principal = { approvalProjects?: string[]; delegatedApproval?: boolean; id: string; role: 'producer'|'owner'; scopes: Scope[]; projects: string[] };
 export type Credential = { token: string; principal: Principal };
 export type Route = { projectId: string; brandId: string; platform: 'threads'|'instagram'; accountKey: string;
   adapter: string; executionOwner: 'provider'; mode: 'simulation'|'live' };
@@ -36,6 +36,7 @@ export function canonical(value: unknown): string {
 export const hash = (v: unknown) => createHash('sha256').update(canonical(v)).digest('hex');
 export function authorize(p: Principal, scope: Scope, project: string) {
   if (!p.scopes.includes(scope) || !p.projects.includes(project)) fail('FORBIDDEN',403);
+  if (scope==='approve' && p.approvalProjects && !p.approvalProjects.includes(project)) fail('FORBIDDEN',403);
   if (scope==='approve' && p.role!=='owner') fail('HUMAN_APPROVAL_REQUIRED',403);
 }
 export function authenticate(header: string|undefined, credentials: Credential[]): Principal {

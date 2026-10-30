@@ -39,7 +39,7 @@ export class DistributionHub {
         const page=all.slice(0,limit);
         return {projectId:args.projectId,items:page.map(plan=>({planId:plan.id,digest:plan.digest,brandId:plan.input.brandId,contentId:plan.input.contentId,
           revision:plan.input.revision,state:plan.state,requiresOwnerApproval:plan.state==='NEEDS_APPROVAL',
-          canApprove:plan.state==='NEEDS_APPROVAL'&&p.role==='owner'&&p.scopes.includes('approve')&&(plan.submittedBy!==p.id||p.delegatedApproval===true),
+          canApprove:plan.state==='NEEDS_APPROVAL'&&p.role==='owner'&&p.scopes.includes('approve')&&(!p.approvalProjects||p.approvalProjects.includes(args.projectId))&&(plan.submittedBy!==p.id||p.delegatedApproval===true),
           variants:structuredClone(plan.input.variants),assets:structuredClone(plan.input.assets),
           deliveries:structuredClone(plan.deliveries)})),nextCursor:all.length>limit?page.at(-1)!.id:null,
           eventCursor:j.events.filter(e=>e.projectId===args.projectId).at(-1)?.sequence??0,aiCalls:0};

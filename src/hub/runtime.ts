@@ -40,7 +40,7 @@ export function configuredHub(){
   if(process.env.LD_KEVIN_CLOUD_ENABLED==='true'){
     const token=process.env.LD_KEVIN_HUB_TOKEN;
     if(!token||token.length<40||credentials.some(c=>c.token===token||c.principal.id==='kevin-cloud'))fail('KEVIN_CLOUD_CREDENTIAL_REQUIRED',503);
-    credentials.push({token:token!,principal:{id:'kevin-cloud',role:'owner',delegatedApproval:true,projects:workflow?['copilot','subteam']:['copilot'],scopes:workflow?['submit','status','review','schedule','cancel','reconcile','pause','editorial']:['submit','status','review','approve','schedule','cancel','reconcile','pause','editorial']}});
+    credentials.push({token:token!,principal:{id:'kevin-cloud',role:'owner',delegatedApproval:true,projects:workflow?['copilot','subteam']:['copilot'],approvalProjects:['copilot'],scopes:['submit','status','review','approve','schedule','cancel','reconcile','pause','editorial']}});
   }
 
   const directory=process.env.LD_STORAGE_DIR,binding=process.env.LD_STORAGE_BINDING;
@@ -68,7 +68,7 @@ export function configuredHub(){
     if(directory&&token&&account)adapters[`buffer-${platform}`]=new BufferAdapter(`buffer-${platform}`,token,account,bindings,
       new FileBufferBudget(directory),process.env.LD_BUFFER_ENABLE_WRITES==='true',fetch,
       platform==='threads'?threadsConfirmer(JSON.parse(process.env.LD_THREADS_READ_BINDINGS_JSON??'[]')):undefined,
-      JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'),workflow?humanActors:process.env.LD_KEVIN_CLOUD_ENABLED==='true'?['kevin-cloud']:[],{reels,probe:instagramFormats?driveMediaProbe(fetch,()=>Date.now(),{image:8*1024*1024,video:300*1024*1024}):mediaProbe,verifyIdentity:strict,accountKeys:mediaAccountKeys,instagramFormats,firstComment:process.env.LD_BUFFER_FIRST_COMMENT_ENABLED==='true'});
+      JSON.parse(process.env.LD_BUFFER_RELEASE_DIGESTS_JSON??'[]'),[...humanActors,...(process.env.LD_KEVIN_CLOUD_ENABLED==='true'?[{actor:'kevin-cloud',projectId:'copilot'}]:[])],{reels,probe:instagramFormats?driveMediaProbe(fetch,()=>Date.now(),{image:8*1024*1024,video:300*1024*1024}):mediaProbe,verifyIdentity:strict,accountKeys:mediaAccountKeys,instagramFormats,firstComment:process.env.LD_BUFFER_FIRST_COMMENT_ENABLED==='true'});
   }
   // Subteam stays read/validation-only unless its own explicit write release is enabled.
   // The global production write switch never enables this account.

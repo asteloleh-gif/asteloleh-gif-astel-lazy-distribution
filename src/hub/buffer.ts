@@ -38,7 +38,7 @@ export class BufferAdapter implements PublishingAdapter {
   constructor(readonly id:string,private token:string,private accountId:string,private bindings:BufferBinding[],
     private budget:RequestBudget,private enabled=false,private fetcher:typeof fetch=fetch,
     private confirm?: (link:string,c:AdapterCommand)=>Promise<{platformPostId:string;confirmedAt:string}|undefined>,
-    private releaseDigests?:string[], private delegatedApprovalActors:string[]=[],private options:{reels?:boolean;probe?:MediaProbe;verifyIdentity?:boolean;accountKeys?:string[];instagramFormats?:boolean;firstComment?:boolean}={}){
+    private releaseDigests?:string[], private delegatedApprovalActors:(string|{actor:string;projectId:string})[]=[],private options:{reels?:boolean;probe?:MediaProbe;verifyIdentity?:boolean;accountKeys?:string[];instagramFormats?:boolean;firstComment?:boolean}={}){
       if(releaseDigests&&(!Array.isArray(releaseDigests)||releaseDigests.some(d=>typeof d!=='string'||!/^[a-f0-9]{64}$/.test(d))))fail('BUFFER_RELEASE_CONFIG_INVALID',503);
     }
   capabilities(){return {...(this.options.instagramFormats&&this.bindings.some(b=>b.platform==='instagram')?{instagramFormats:['image','carousel','reel','story'],notificationRequiresDevice:true,firstComment:this.options.firstComment===true}:{}),executionOwner:'provider' as const,schedule:this.enabled,cancel:this.enabled,live:this.enabled};}
@@ -104,7 +104,7 @@ export class BufferAdapter implements PublishingAdapter {
   }
   async submit(c:AdapterCommand,checkpoint:(id:string)=>Promise<void>):Promise<Receipt>{
     if(!this.enabled)return fail('BUFFER_RELEASE_NOT_ENABLED',503);
-    if(this.releaseDigests&&!this.releaseDigests.includes(hash(c.plan))&&!this.delegatedApprovalActors.includes(c.approvalActor??''))return fail('BUFFER_MATERIAL_NOT_RELEASED',403);
+    if(this.releaseDigests&&!this.releaseDigests.includes(hash(c.plan))&&!this.delegatedApprovalActors.some(a=>typeof a==='string'?a===c.approvalActor:a.actor===c.approvalActor&&a.projectId===c.plan.projectId))return fail('BUFFER_MATERIAL_NOT_RELEASED',403);
     await this.validate(c);const b=this.binding(c),v=c.plan.variants[c.target.variant];
     const asset=v.asset===undefined?undefined:c.plan.assets[v.asset];
     const input={channelId:b.channelId,text:v.text,assets:asset?[asset.kind==='reel'?{video:{url:asset.url}}:{image:{url:asset.url}}]:[],
