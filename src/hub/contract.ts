@@ -52,6 +52,10 @@ function keys(o: any, allowed: string[]) {
   if (!o || typeof o!=='object' || Array.isArray(o) || Object.keys(o).some(k=>!allowed.includes(k))) fail('INVALID_FIELDS',400);
 }
 function str(v: any, max=200): asserts v is string { if(typeof v!=='string'||!v.length||v.length>max) fail('INVALID_STRING',400); }
+// Buffer API Character Limits: UTF-16 units; topics cannot contain & or .
+export function validateThreadsTopic(topic: unknown): asserts topic is string {
+  if(typeof topic!=='string'||!topic.trim()||topic.length>50||/[&.]/.test(topic))fail('INVALID_THREADS_TOPIC',400);
+}
 function date(v: any) { str(v); if(!/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(v)||!Number.isFinite(Date.parse(v))) fail('INVALID_TIME',400); }
 export function validate(input: unknown, p: Principal, routes: Route[], mediaHosts: string[]): PlanInput {
   const x=input as PlanInput;
@@ -63,7 +67,7 @@ export function validate(input: unknown, p: Principal, routes: Route[], mediaHos
   if(!Array.isArray(x.assets)||x.assets.length>10||!Array.isArray(x.destinations)||!x.destinations.length||x.destinations.length>10) fail('INVALID_TARGETS',400);
   if(!x.variants||typeof x.variants!=='object'||Array.isArray(x.variants)||Object.keys(x.variants).length>10) fail('INVALID_VARIANTS',400);
   for(const v of Object.values(x.variants)) { keys(v,['text','asset','assetIndices','instagram','threads']);if(v.instagram||v.assetIndices)instagramVariant(v,x.assets);else str(v.text,10000);if(v.asset!==undefined&&(!Number.isInteger(v.asset)||!x.assets[v.asset])) fail('INVALID_ASSET',400); }
-  for(const v of Object.values(x.variants))if(v.threads!==undefined){keys(v.threads,['topic']);str(v.threads.topic,10000);if(!v.threads.topic.trim())fail('INVALID_THREADS_TOPIC',400);}
+  for(const v of Object.values(x.variants))if(v.threads!==undefined){keys(v.threads,['topic']);validateThreadsTopic(v.threads.topic);}
   for(const a of x.assets) {
     keys(a,['url','kind','digest','revision','availableUntil','altText','thumbnailOffset','userTags']);str(a.url,4096);str(a.revision);date(a.availableUntil);
     if(!['image','reel','video'].includes(a.kind)||!/^sha256:[a-f0-9]{64}$/.test(a.digest)) fail('ASSET_IDENTITY_REQUIRED',400);
@@ -81,7 +85,7 @@ export function validate(input: unknown, p: Principal, routes: Route[], mediaHos
     if(!routes.some(r=>r.projectId===x.projectId&&r.brandId===x.brandId&&r.platform===t.platform&&r.accountKey===t.accountKey&&r.mode===x.mode&&r.executionOwner==='provider')) fail('ROUTE_DENIED',403);
     const key=t.platform+':'+t.accountKey;if(targets.has(key)) fail('DUPLICATE_TARGET',400);targets.add(key);
     const v=x.variants[t.variant];if(!v) fail('VARIANT_MISSING',400);
-    if(t.platform==='threads'&&(Array.from(v.text).length>500||v.asset!==undefined||v.assetIndices!==undefined||v.instagram!==undefined)) fail('THREADS_TEXT_ONLY',400);
+    if(t.platform==='threads'&&(v.text.length>500||v.asset!==undefined||v.assetIndices!==undefined||v.instagram!==undefined)) fail('THREADS_TEXT_ONLY',400);
     if(t.platform!=='threads'&&v.threads!==undefined)fail('THREADS_TOPIC_PLATFORM_MISMATCH',400);
     if(t.platform==='instagram')instagramVariant(v,x.assets);
     if(assetIndices(v).some(i=>Date.parse(x.assets[i].availableUntil)<=Date.parse(t.scheduledAt))) fail('ASSET_EXPIRES_BEFORE_DELIVERY',400);

@@ -2,7 +2,7 @@ import {instagramVariant,instagramPayload} from './instagram-format.js';
 import {open,readFile,rename,unlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {MediaProbe} from './drive-media.js';
-import {fail,hash} from './contract.js';
+import {fail,hash,validateThreadsTopic} from './contract.js';
 import type {Receipt} from './contract.js';
 import type {AdapterCommand,PublishingAdapter} from './openpost.js';
 
@@ -64,9 +64,9 @@ export class BufferAdapter implements PublishingAdapter {
   async validate(c:AdapterCommand){
     this.binding(c);const v=c.plan.variants[c.target.variant];
     if(!v||!Number.isFinite(Date.parse(c.target.scheduledAt)))return fail('BUFFER_INVALID_MATERIAL',400);
-    if(c.target.platform==='threads'&&v.asset!==undefined)return fail('BUFFER_THREADS_TEXT_ONLY',400);
+    if(c.target.platform==='threads'&&(v.asset!==undefined||v.text.length>500))return fail('BUFFER_THREADS_TEXT_ONLY',400);
     if(c.target.platform==='threads'&&v.threads!==undefined){
-      if(typeof v.threads.topic!=='string'||!v.threads.topic.trim())return fail('INVALID_THREADS_TOPIC',400);
+      validateThreadsTopic(v.threads.topic);
       // Fail closed before scheduling if this provider schema cannot carry the native topic.
       const schema=await this.query('query{metadata:__type(name:"PostInputMetaData"){inputFields{name}} threads:__type(name:"ThreadsPostMetadataInput"){inputFields{name}}} ',{});
       if(!schema.metadata?.inputFields?.some((f:any)=>f.name==='threads')||!schema.threads?.inputFields?.some((f:any)=>f.name==='topic'))return fail('BUFFER_THREADS_TOPIC_UNSUPPORTED',503);

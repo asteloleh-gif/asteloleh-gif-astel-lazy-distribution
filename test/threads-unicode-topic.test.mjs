@@ -27,15 +27,18 @@ function setup(plan,{supported=true,echo=true,error=false,partial=false,topicRes
   return response(b.query.startsWith('mutation')?{createPost:{__typename:'PostActionSuccess',post}}:{post});
  });return {a,c,calls};
 }
-test('Threads counts Unicode code points, including boundaries and combining sequences',()=>{
- for(const unit of ['a','я','ї','🤡']){
+test('Threads counts UTF-16 units, including emoji, Cyrillic and combining boundaries',()=>{
+ for(const unit of ['a','я','ї']){
   for(const n of [499,500])assert.equal(check(input(unit.repeat(n))).variants.v.text,unit.repeat(n));
   assert.throws(()=>check(input(unit.repeat(501))),e=>e.code==='THREADS_TEXT_ONLY');
  }
  assert.doesNotThrow(()=>check(input('e\u0301'.repeat(250))));
  assert.throws(()=>check(input('e\u0301'.repeat(250)+'x')));
- assert.doesNotThrow(()=>check(input('👩‍💻'.repeat(166)+'ab')));
- assert.throws(()=>check(input('👩‍💻'.repeat(167))));
+ for(const text of ['🤡'.repeat(250),'я'.repeat(498)+'🤡','ї'.repeat(250)+'🤡'.repeat(125),'👩‍💻'.repeat(100)]){
+  assert.equal(text.length,500);assert.equal(check(input(text)).variants.v.text,text);
+  assert.throws(()=>check(input(text+'x')),e=>e.code==='THREADS_TEXT_ONLY');
+ }
+ assert.throws(()=>check(input('🤡'.repeat(500))),e=>e.code==='THREADS_TEXT_ONLY');
 });
 test('topic is strict, platform scoped, immutable and included in approval digest',()=>{
  const x=input('текст','AI');assert.deepEqual(check(x),x);assert.notEqual(hash(x),hash(input('текст','UGC')));
@@ -103,4 +106,19 @@ test('unconfirmed or mismatching topic does not prevent safe cancellation of an 
   await assert.rejects(()=>a.cancel('different-id',c),e=>e.code==='BUFFER_POST_IDENTITY_MISMATCH');
   assert.equal(calls.filter(c=>c.query.includes('deletePost(input:')).length,1);
  }
+});
+
+test('topic limits use UTF-16 and documented forbidden characters without byte restrictions',async()=>{
+ for(const topic of ['я'.repeat(50),'🤡'.repeat(25),'AI','E-commerce','Social Media','Startups','Small Business','UGC','Online Shopping','Content Creation']){
+  const plan=check(input('Текст',topic));assert.equal(plan.variants.v.threads.topic,topic);
+  const {a,c,calls}=setup(plan);await a.submit(c,async()=>{});
+  assert.equal(calls.find(r=>r.query.startsWith('mutation')).variables.input.metadata.threads.topic,topic);
+ }
+ for(const topic of ['x'.repeat(51),'🤡'.repeat(25)+'x','A&B','AI.','.', '&', '', '   ',null,5]){
+  assert.throws(()=>check(input('Текст',topic)),e=>e.code==='INVALID_THREADS_TOPIC');
+  const {a,c,calls}=setup(input('Текст',topic));
+  await assert.rejects(()=>a.submit(c,async()=>assert.fail()),e=>e.code==='INVALID_THREADS_TOPIC');assert.equal(calls.length,0);
+ }
+ const {a,c,calls}=setup(input('🤡'.repeat(251),'AI'));
+ await assert.rejects(()=>a.submit(c,async()=>assert.fail()),e=>e.code==='BUFFER_THREADS_TEXT_ONLY');assert.equal(calls.length,0);
 });
