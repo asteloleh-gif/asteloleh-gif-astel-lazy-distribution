@@ -14,7 +14,7 @@ export type Route = { projectId: string; brandId: string; platform: 'threads'|'i
   adapter: string; executionOwner: 'provider'; mode: 'simulation'|'live' };
 export type Asset = { url: string; kind: 'image'|'reel'|'video'; altText?:string; thumbnailOffset?:number; userTags?:{handle:string;x:number;y:number}[]; digest: string; revision: string; availableUntil: string };
 export type Target = { platform: 'threads'|'instagram'; accountKey: string; variant: string; scheduledAt: string; timezone: string };
-export type Variant={text:string;asset?:number;assetIndices?:number[];instagram?:InstagramOptions};
+export type Variant={text:string;asset?:number;assetIndices?:number[];instagram?:InstagramOptions;threads?:{topic:string}};
 export type PlanInput = { contractVersion: 1; projectId: string; brandId: string; contentId: string; revision: number;
   source: { producer: string; reference: string }; variants: Record<string,Variant>;
   assets: Asset[]; destinations: Target[]; requestId: string; idempotencyKey: string; mode: 'simulation'|'live' };
@@ -62,7 +62,8 @@ export function validate(input: unknown, p: Principal, routes: Route[], mediaHos
   keys(x.source,['producer','reference']);str(x.source.producer);str(x.source.reference,2000);
   if(!Array.isArray(x.assets)||x.assets.length>10||!Array.isArray(x.destinations)||!x.destinations.length||x.destinations.length>10) fail('INVALID_TARGETS',400);
   if(!x.variants||typeof x.variants!=='object'||Array.isArray(x.variants)||Object.keys(x.variants).length>10) fail('INVALID_VARIANTS',400);
-  for(const v of Object.values(x.variants)) { keys(v,['text','asset','assetIndices','instagram']);if(v.instagram||v.assetIndices)instagramVariant(v,x.assets);else str(v.text,10000);if(v.asset!==undefined&&(!Number.isInteger(v.asset)||!x.assets[v.asset])) fail('INVALID_ASSET',400); }
+  for(const v of Object.values(x.variants)) { keys(v,['text','asset','assetIndices','instagram','threads']);if(v.instagram||v.assetIndices)instagramVariant(v,x.assets);else str(v.text,10000);if(v.asset!==undefined&&(!Number.isInteger(v.asset)||!x.assets[v.asset])) fail('INVALID_ASSET',400); }
+  for(const v of Object.values(x.variants))if(v.threads!==undefined){keys(v.threads,['topic']);str(v.threads.topic,10000);if(!v.threads.topic.trim())fail('INVALID_THREADS_TOPIC',400);}
   for(const a of x.assets) {
     keys(a,['url','kind','digest','revision','availableUntil','altText','thumbnailOffset','userTags']);str(a.url,4096);str(a.revision);date(a.availableUntil);
     if(!['image','reel','video'].includes(a.kind)||!/^sha256:[a-f0-9]{64}$/.test(a.digest)) fail('ASSET_IDENTITY_REQUIRED',400);
@@ -80,7 +81,8 @@ export function validate(input: unknown, p: Principal, routes: Route[], mediaHos
     if(!routes.some(r=>r.projectId===x.projectId&&r.brandId===x.brandId&&r.platform===t.platform&&r.accountKey===t.accountKey&&r.mode===x.mode&&r.executionOwner==='provider')) fail('ROUTE_DENIED',403);
     const key=t.platform+':'+t.accountKey;if(targets.has(key)) fail('DUPLICATE_TARGET',400);targets.add(key);
     const v=x.variants[t.variant];if(!v) fail('VARIANT_MISSING',400);
-    if(t.platform==='threads'&&(Buffer.byteLength(v.text)>500||v.asset!==undefined||v.assetIndices!==undefined||v.instagram!==undefined)) fail('THREADS_TEXT_ONLY',400);
+    if(t.platform==='threads'&&(Array.from(v.text).length>500||v.asset!==undefined||v.assetIndices!==undefined||v.instagram!==undefined)) fail('THREADS_TEXT_ONLY',400);
+    if(t.platform!=='threads'&&v.threads!==undefined)fail('THREADS_TOPIC_PLATFORM_MISMATCH',400);
     if(t.platform==='instagram')instagramVariant(v,x.assets);
     if(assetIndices(v).some(i=>Date.parse(x.assets[i].availableUntil)<=Date.parse(t.scheduledAt))) fail('ASSET_EXPIRES_BEFORE_DELIVERY',400);
   }

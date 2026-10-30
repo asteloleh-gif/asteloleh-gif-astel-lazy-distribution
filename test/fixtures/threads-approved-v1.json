@@ -1,0 +1,132 @@
+{
+  "libraryFileId": "libfile_a0fc8cc398a08191bffb56b2bb54c4cd",
+  "version": 1,
+  "records": [
+    {
+      "id": "RU1",
+      "originalSlot": "30 октября, 09:00 · Новость + вопрос",
+      "text": "Олег, что по новостям? 🌚\n\nShopify теперь предлагает проверять изменения магазина на AI-покупателях. В описании честно: это симуляция, не реальные люди и не живой A/B-тест.\n\nНейронка одобрила дизайн, нейронке понравилось покупать. Осталось дождаться человека с картой 🤡\n\nКакой результат такого теста убедил бы вас менять магазин, а какой вы бы перепроверили на людях?",
+      "nativeTopicCandidate": "E-commerce",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "RU2",
+      "originalSlot": "30 октября, 13:00 · Учебная ситуация + текстовый опрос",
+      "text": "Акулы вайбкодинга, задачка без кода 🤡\n\nДопустим, сервис экономит вам час в неделю. Но стоит как ещё одна подписка, которую потом забудешь отменить.\n\nЧто должно случиться, чтобы вы начали платить?\n1. Сам сделал вашу реальную задачу.\n2. Дал неделю без карты.\n3. Показал понятный результат на чужом примере.\n\nГде для вас заканчивается «прикольная демка» и начинается полезный инструмент?",
+      "nativeTopicCandidate": "AI",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "RU3",
+      "originalSlot": "30 октября, 18:00 · Личное наблюдение + вопрос",
+      "text": "У меня к Threads уже философский вопрос 🌚\n\nСмотрю на комментарии под своими постами: иногда ощущение, что один бот пришёл к другому боту, они обменялись «классный инсайт» и разошлись.\n\nА я вообще-то хотел с людьми поговорить.\n\nЧто вы сами в последний раз лайкнули здесь? Шутку, полезную находку, чужую историю? Интересно, что заставило остановиться, а не просто пролистать.",
+      "nativeTopicCandidate": "Social Media",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "RU4",
+      "originalSlot": "31 октября, 09:00 · Личная самоирония, без опроса",
+      "text": "Выживаю в США. День 804.\n\nК Хеллоуину костюм можно не искать: человек, у которого тысяча проектов и вопрос «а деньги где?» 🤡\n\nТо контент, то редактор, то новая идея для ролика. Идей достаточно, даже с запасом.\n\nСтрашнее всего не плохая идея. Страшнее снова красиво всё подготовить и так и не проверить, захочет ли за это заплатить хоть один незнакомый человек.",
+      "nativeTopicCandidate": "Startups",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "RU5",
+      "originalSlot": "31 октября, 13:00 · Знакомый хук + рабочий вопрос",
+      "text": "Акулы вайбкодинга, маленькая проверка на человечность 🤡\n\nПросишь AI сделать работу под ключ. Он сделал первый шаг и спрашивает: «Продолжить?»\n\nДа. Продолжить. Мы ради этого и собрались.\n\nНо доступ к карте я ему тоже просто так не отдам. Где у вас эта граница: что он делает сам, а перед каким действием обязан дёрнуть вас? Мне интересно именно в рабочих задачах, без фантастики.",
+      "nativeTopicCandidate": "AI",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "RU6",
+      "originalSlot": "31 октября, 18:00 · Учебная ситуация + вопрос",
+      "text": "«Сделать лендинг — один вечер». А согласовать его — отдельная жизнь 🤡\n\nУсловный заказ: страницу собрали быстро. Потом «чуть другой текст», ещё один созвон и «давайте вернём первый вариант».\n\nЕсли считать только часы в редакторе, заказ выглядит выгоднее, чем он есть.\n\nКто работает с клиентами: как вы заранее определяете, где заканчиваются правки и начинается новая работа?",
+      "nativeTopicCandidate": "Small Business",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "UA1",
+      "originalSlot": "30 октября, 09:00 · Новость + текстовый опрос",
+      "text": "Олег, що по новинах? 🌚\n\nShopify додав knowledge base: продавець перевіряє й публікує факти про магазин, які система передає AI-агентам. Зокрема, куди доставляють і які умови повернення.\n\nУявіть, AI вже пообіцяв покупцю зайвого, а розбиратися вам 🤡\n\nЩо перевірили б першим?\n1. Строк доставки.\n2. Повернення.\n3. Гарантію.\n\nДе помилка обійдеться найдорожче?",
+      "nativeTopicCandidate": "E-commerce",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "UA2",
+      "originalSlot": "30 октября, 13:00 · Учебная ситуация + текстовый опрос",
+      "text": "Уявімо: треба зняти рекламу рюкзака. Є два варіанти.\n\nА: красиве світло, ідеальний стіл, людина каже «це змінило моє життя».\nБ: людина показує свій бардак, бере рюкзак і намагається запхати туди все. Щось не влазить 🤡\n\nЯкий ролик допоможе вам вирішити, чи підходить товар? І що ще треба показати, щоб не купувати навмання?",
+      "nativeTopicCandidate": "UGC",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "UA3",
+      "originalSlot": "30 октября, 18:00 · Учебная ситуация + вопрос",
+      "text": "Товар $20, доставка $8.\nТой самий товар $28, доставка безкоштовна.\n\nКалькулятор каже: однаково. А на сторінці магазину це чомусь два різні відчуття 🤡\n\nУявний приклад, без «дослідження британських учених». Мені цікава ваша реальна звичка: що обираєте за однакових строків і повернення? Чи головне, щоб повна сума була видна одразу?",
+      "nativeTopicCandidate": "Online Shopping",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "UA4",
+      "originalSlot": "31 октября, 09:00 · Личный план + вопрос",
+      "text": "Привіт, я Олег. Хочу робити розбори бізнесів своїм голосом, але не сидіти по дві години над кожним монтажем.\n\nПлан такий: спочатку голос і відеоряд. Потім додам себе в кадр. А вже потім можна бавитися з нейроклоном 🤡\n\nЩо вам важливіше в такому розборі: бачити автора чи бачити на екрані саме те, про що він говорить?",
+      "nativeTopicCandidate": "Content Creation",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "UA5",
+      "originalSlot": "31 октября, 13:00 · Сезонный текстовый опрос",
+      "text": "Справжній хелловінський хорор: товар на фото виглядає великим, а потім читаєш «розміри в сантиметрах» 💀\n\nНе історія про конкретний магазин. Просто тест картки товару: що краще допомагає зрозуміти розмір?\n\n1. Фото в руці.\n2. Фото поруч зі звичайною чашкою.\n3. Креслення з розмірами.\n\nОсобливо коли це сумка: хочеться знати, чи влізе ноутбук, а не вгадувати за красивим фото.",
+      "nativeTopicCandidate": "Online Shopping",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "UA6",
+      "originalSlot": "31 октября, 18:00 · Учебный эксперимент, без опроса",
+      "text": "Ідея тесту для маленького магазину: попросити людину знайти товар і дійти до оплати на своєму телефоні. Самому мовчати.\n\nНе пояснювати, де кнопка. Не рятувати словами «та тут усе просто». І не плутати тест із реальною покупкою.\n\nБо якщо без власника поруч покупець не розуміє, що натискати, ще одна красива анімація навряд чи це виправить 🤡",
+      "nativeTopicCandidate": "Small Business",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "EN1",
+      "originalSlot": "30 октября, 09:00 · News + question",
+      "text": "AI designs the store. AI shops in the store. Everyone agrees the store is great. 🤡\n\nShopify's October 28 update lets Sidekick compare storefront changes using simulated shoppers. Shopify explicitly says this isn't a live A/B test with real customers.\n\nUseful rehearsal, maybe. What evidence would you want before applying the change to your actual store?",
+      "nativeTopicCandidate": "E-commerce",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "EN2",
+      "originalSlot": "30 октября, 13:00 · Hypothetical choice",
+      "text": "A tool saves you an hour a week. Great. Now it wants to become another subscription you'll forget to cancel. 🤡\n\nHypothetical: what would make you pay?\n1. It completes one of your actual tasks.\n2. You get a week to try it without a card.\n3. You see a convincing demo.\n\nWhere does “cool demo” turn into “I would genuinely miss this if it disappeared”?",
+      "nativeTopicCandidate": "AI",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "EN3",
+      "originalSlot": "30 октября, 18:00 · Personal workflow + question",
+      "text": "“Build the whole thing.”\n“Step one is done. Shall I continue?”\n\nYes. That's why we're here. 🤡\n\nThis keeps coming up while I'm working with AI on my projects. I want it to finish routine work without checking with me every five minutes. I also want a say before it spends money or changes access.\n\nWhere have you drawn that line in your own workflow?",
+      "nativeTopicCandidate": "AI",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "EN4",
+      "originalSlot": "31 октября, 09:00 · News + hypothetical question",
+      "text": "Your AI sales assistant just promised a return policy you never offered. Excellent initiative. 🤡\n\nHypothetical, but Shopify's new knowledge base gives merchants control over the store facts Shopify shares with agents.\n\nBefore AI answers a customer's question, which detail would you check hardest: delivery dates, warranties, or returns?",
+      "nativeTopicCandidate": "E-commerce",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "EN5",
+      "originalSlot": "31 октября, 13:00 · Personal Halloween observation",
+      "text": "Halloween costume idea: founder with a pile of projects and no answer to “which one actually makes money?” 💀\n\nA little too close to my current pile of ideas: content, a video editor, another video concept.\n\nThe temptation is to make everything look finished before anyone can buy it. A logo, a page, a workflow. Very productive. Still no customer in the room. 🤡",
+      "nativeTopicCandidate": "Startups",
+      "nativeTopicVerified": false
+    },
+    {
+      "id": "EN6",
+      "originalSlot": "31 октября, 18:00 · Hypothetical choice",
+      "text": "Two ads for the same backpack.\n\nOne: perfect lighting, spotless studio, “I'm obsessed.”\nTwo: somebody tries to fit their actual junk into it. The laptop doesn't fit. 🤡\n\nA hypothetical creative test. I'd want to know which version helps you judge the product, not just which looks better.\n\nWhat would you need to see before buying it for everyday use?",
+      "nativeTopicCandidate": "UGC",
+      "nativeTopicVerified": false
+    }
+  ]
+}

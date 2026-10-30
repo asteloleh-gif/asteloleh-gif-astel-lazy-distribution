@@ -61,6 +61,12 @@ export class BufferAdapter implements PublishingAdapter {
     this.binding(c);const v=c.plan.variants[c.target.variant];
     if(!v||!Number.isFinite(Date.parse(c.target.scheduledAt)))return fail('BUFFER_INVALID_MATERIAL',400);
     if(c.target.platform==='threads'&&v.asset!==undefined)return fail('BUFFER_THREADS_TEXT_ONLY',400);
+    if(c.target.platform==='threads'&&v.threads!==undefined){
+      if(typeof v.threads.topic!=='string'||!v.threads.topic.trim())return fail('INVALID_THREADS_TOPIC',400);
+      // Fail closed before scheduling if this provider schema cannot carry the native topic.
+      const schema=await this.query('query{metadata:__type(name:"PostInputMetaData"){inputFields{name}} threads:__type(name:"ThreadsPostMetadataInput"){inputFields{name}}} ',{});
+      if(!schema.metadata?.inputFields?.some((f:any)=>f.name==='threads')||!schema.threads?.inputFields?.some((f:any)=>f.name==='topic'))return fail('BUFFER_THREADS_TOPIC_UNSUPPORTED',503);
+    }
     if(c.target.platform==='instagram'){
       const v=c.plan.variants[c.target.variant];
       const extended=!!(v.instagram||v.assetIndices||c.plan.assets.some(a=>a.kind==='video'||a.altText!==undefined||a.userTags!==undefined||a.thumbnailOffset!==undefined));
@@ -99,6 +105,7 @@ export class BufferAdapter implements PublishingAdapter {
     const asset=v.asset===undefined?undefined:c.plan.assets[v.asset];
     const input={channelId:b.channelId,text:v.text,assets:asset?[asset.kind==='reel'?{video:{url:asset.url}}:{image:{url:asset.url}}]:[],
       ...(asset?.kind==='reel'?{metadata:{instagram:{type:'reel',shouldShareToFeed:true}}}:{}),
+      ...(c.target.platform==='threads'&&v.threads?{metadata:{threads:{topic:v.threads.topic}}}:{}),
       schedulingType:'automatic',...(c.target.platform==='instagram'&&this.options.instagramFormats?instagramPayload(v,c.plan.assets):{}),mode:'customScheduled',dueAt:c.target.scheduledAt,needsApproval:false,aiAssisted:false};
     const data=await this.query(`mutation($input:CreatePostInput!){createPost(input:$input){__typename ... on PostActionSuccess{post{${this.fields(c)}}}}}`,{input},true);
     const p=data.createPost?.post;
@@ -106,8 +113,10 @@ export class BufferAdapter implements PublishingAdapter {
     // Persist remote identity before any readback. No automatic create retry, even on timeout.
     await checkpoint(p.id);this.check(p,c,p.id,true);return this.receipt(p,c);
   }
-  private fields(c:AdapterCommand){return fields+(this.options.instagramFormats&&c.target.platform==='instagram'?' schedulingType metadata{... on InstagramPostMetadata{type shouldShareToFeed}}':'');}
+  private fields(c:AdapterCommand){return fields+(c.target.platform==='threads'&&c.plan.variants[c.target.variant].threads?' metadata{... on ThreadsPostMetadata{topic}}':'')+(this.options.instagramFormats&&c.target.platform==='instagram'?' schedulingType metadata{... on InstagramPostMetadata{type shouldShareToFeed}}':'');}
   private check(p:any,c:AdapterCommand,id:string,schedule=false){
+    const topic=c.plan.variants[c.target.variant].threads?.topic;
+    if(c.target.platform==='threads'&&topic!==undefined&&p?.metadata?.topic!==topic)fail('BUFFER_THREADS_TOPIC_MISMATCH',502);
     if(this.options.instagramFormats&&c.target.platform==='instagram'){
       const v=c.plan.variants[c.target.variant],f=instagramVariant(v,c.plan.assets);
       if(v.instagram||v.assetIndices||f.type==='reel'||f.selected.some(a=>a.kind==='video')){
