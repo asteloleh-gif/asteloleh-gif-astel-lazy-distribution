@@ -2,17 +2,23 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {radarClient} from './client.mjs';
 import {ReadBrowser} from './browser.mjs';
+import { CAROUSEL_ACCOUNT, collectFeedUrls, isCarouselQuery } from './feed-carousel.mjs';
 
 export async function runWorker({call,openBrowser,taskId,candidateUrls}){
   const task=await call('claim',{taskId});const generation=task.generation;
   let browser,stopped=false,timer,pending=Promise.resolve();
   const guard=async()=>{if(stopped)throw Error('LEASE_LOST');try{const t=await call('heartbeat',{taskId,generation});if(t.worker!==task.worker||t.generation!==generation||t.state!=='RUNNING')throw Error('LEASE_LOST');return t;}catch{stopped=true;await browser?.close().catch(()=>{});throw Error('LEASE_LOST');}};
   try{
+    const carousel = isCarouselQuery(task.query);
+    if (carousel && task.account !== CAROUSEL_ACCOUNT) throw Error('CAROUSEL_ACCOUNT_DENIED');
+    if (carousel && candidateUrls !== undefined) throw Error('CAROUSEL_URL_OVERRIDE_DENIED');
     browser=await openBrowser(task.account);
     timer=setInterval(()=>{pending=pending.then(()=>guard()).catch(()=>{});},10000);timer.unref?.();
     await browser.home(guard);
-    const urls=candidateUrls??await browser.search(task.query,guard);
     const visited=new Set(task.checkpoint.visited??[]);
+    const urls = carousel
+      ? await collectFeedUrls(browser, guard, visited)
+      : candidateUrls ?? await browser.search(task.query, guard);
     for(const url of urls.slice(0,10)){
       if(visited.has(url))continue;await guard();
       const evidence=await browser.read(url,guard);await guard();
